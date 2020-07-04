@@ -33,15 +33,15 @@ class SteamApi(
             }
         }
 
-    fun getGamesOwnedByPlayer(playerId: String):List<String> {
-        val url = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=$key&steamid=$playerId&format=json"
+    fun getGamesOwnedByPlayer(steamid: String):List<String> {
+        val url = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=$key&steamid=$steamid&format=json"
         //if (debug) println(url)
         val request:Request = Request.Builder().url(url).build()
         return client.newCall(request).execute().use { response ->
             val responseString = response.body?.string()
 
             if (responseString == null) {
-                println("ERROR: got null response for game library request for ID $playerId")
+                println("ERROR: got null response for game library request for ID $steamid")
                 //Pair(id, listOf<Pair<String, String>>())
                 listOf()
             } else {
@@ -51,20 +51,20 @@ class SteamApi(
                         it.jsonObject["appid"]?.primitive?.contentOrNull
                 } ?: listOf()
                 if (gameIds.isEmpty()) {
-                    println("got zero games for steam ID $playerId; is the profile public?")
+                    println("got zero games for steam ID $steamid; is the profile public?")
                 }
                 gameIds
             }
         }
     }
 
-    fun getFriendsOfPlayer(playerId: String):List<String> {
-        val url = "http://api.steampowered.com/ISteamUser/GetFriendList/v0001/?key=$key&steamid=$playerId&format=json&relationship=friend"
+    fun getFriendsOfPlayer(steamid: String):List<String> {
+        val url = "http://api.steampowered.com/ISteamUser/GetFriendList/v0001/?key=$key&steamid=$steamid&format=json&relationship=friend"
         val request:Request = Request.Builder().url(url).build()
         return client.newCall(request).execute().use { response ->
             val responseString = response.body?.string()
             if(responseString == null) {
-                println("ERROR: got a null response for friends of player: $playerId")
+                println("ERROR: got a null response for friends of player: $steamid")
                 listOf<String>()
             } else {
                 val playerSummaries: JsonArray? = json.parseJson(responseString).jsonObject["friendslist"]?.jsonObject?.get("friends")?.jsonArray
@@ -74,8 +74,8 @@ class SteamApi(
     }
 
     /**Gets the current nickname for each provided player, or an empty map null if the query failed for some reason.*/
-    fun getNicksForPlayerIds(vararg playerIds:String):Map<String, String> {
-        val url = playerIds.fold(
+    fun getNicksForPlayerIds(vararg steamids:String):Map<String, String> {
+        val url = steamids.fold(
                 "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=$key&steamids="
         ) { acc, elem ->
             acc+(if(acc.last()=='=')"" else ",")+elem
@@ -84,7 +84,7 @@ class SteamApi(
         return client.newCall(request).execute().use { response ->
             val responseString = response.body?.string()
             if(responseString == null) {
-                println("ERROR: got a null response for player summaries request for IDs $playerIds")
+                println("ERROR: got a null response for player summaries request for IDs $steamids")
                 mapOf()
             } else {
                 //{"response":{"players":[{
