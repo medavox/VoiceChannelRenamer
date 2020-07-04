@@ -36,6 +36,37 @@ class RedisApi : AutoCloseable {
         if(jedis.exists("$APP_ID_KEY_PREFIX$appid") ) jedis.get("$APP_ID_KEY_PREFIX$appid") else null
     }
 
+    fun setSteamIdForVanityName(vanityName:String, steamid:String):Boolean = pool.resource.use { jedis ->
+        jedis.set(VANITY_ID_KEY_PREFIX+vanityName, steamid) == "OK"
+    }
+
+    fun getSteamIdForVanityName(vanityName:String):String? = pool.resource.use { jedis ->
+        jedis.get(VANITY_ID_KEY_PREFIX+vanityName)
+    }
+
+    fun setGamesForPlayer(steamid:String, vararg gameAppids:String): Unit = pool.resource.use { jedis ->
+        jedis.sadd(OWNED_GAMES_KEY_PREFIX+steamid, *gameAppids)
+        jedis.expire(OWNED_GAMES_KEY_PREFIX+steamid, GAMES_LIST_CACHE_EXPIRY_TIME_SECONDS)
+    }
+    /**returns a list of appids for the given player, or null if no data is found*/
+    fun getGamesForPlayer(steamid:String):Set<String>? = pool.resource.use { jedis ->
+        jedis.smembers(OWNED_GAMES_KEY_PREFIX+steamid)
+    }
+
+    /**Returns the current nickname for the player, or null if no data was found
+     * eg for player with vanityId "addham", the function would return "Mr. Gherkin"*/
+    fun getNickForPlayer(steamid:String):String? = pool.resource.use { jedis ->
+        jedis.get(NICKNAME_KEY_PREFIX+steamid)
+    }
+
+    /**@return false if the data wasn't added because the key already exists*/
+    fun setNickForPlayer(steamid:String, nick:String):Boolean = pool.resource.use { jedis ->
+        jedis.set(NICKNAME_KEY_PREFIX+steamid, nick, SetParams().ex(PLAYER_NICKNAME_EXPIRY_TIME_SECONDS)) == "OK"
+    }
+
+    //we don't need to store the friends for a given player as its own structure (at least not yet),
+    //since we're only querying them as an easy way to get more steamIDs without the app user manually specifying them
+
     fun bulkReadKotlinMap(map:Map<Int, String>) {
         pool.resource.use { jedis ->
             //initialise cache from local file
@@ -75,35 +106,4 @@ class RedisApi : AutoCloseable {
             }
         }
     }
-
-    fun setSteamIdForVanityName(vanityName:String, steamid:String):Boolean = pool.resource.use { jedis ->
-        jedis.set(VANITY_ID_KEY_PREFIX+vanityName, steamid) == "OK"
-    }
-
-    fun getSteamIdForVanityName(vanityName:String):String? = pool.resource.use { jedis ->
-        jedis.get(VANITY_ID_KEY_PREFIX+vanityName)
-    }
-
-    fun setGamesForPlayer(steamid:String, vararg gameAppids:String): Unit = pool.resource.use { jedis ->
-        jedis.sadd(OWNED_GAMES_KEY_PREFIX+steamid, *gameAppids)
-        jedis.expire(OWNED_GAMES_KEY_PREFIX+steamid, GAMES_LIST_CACHE_EXPIRY_TIME_SECONDS)
-    }
-    /**returns a list of appids for the given player, or null if no data is found*/
-    fun getGamesForPlayer(steamid:String):Set<String>? = pool.resource.use { jedis ->
-        jedis.smembers(OWNED_GAMES_KEY_PREFIX+steamid)
-    }
-
-    /**Returns the current nickname for the player, or null if no data was found
-     * eg for player with vanityId "addham", the function would return "Mr. Gherkin"*/
-    fun getNickForPlayer(steamid:String):String? = pool.resource.use { jedis ->
-        jedis.get(NICKNAME_KEY_PREFIX+steamid)
-    }
-
-    /**@return false if the data wasn't added because the key already exists*/
-    fun setNickForPlayer(steamid:String, nick:String):Boolean = pool.resource.use { jedis ->
-        jedis.set(NICKNAME_KEY_PREFIX+steamid, nick, SetParams().ex(PLAYER_NICKNAME_EXPIRY_TIME_SECONDS)) == "OK"
-    }
-
-    //we don't need to store the friends for a given player as its own structure (at least not yet),
-    //since we're only querying them as an easy way to get more steamIDs without the app user manually specifying them
 }
