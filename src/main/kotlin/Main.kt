@@ -193,7 +193,7 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     return nameMappings
 }
 
-fun main(args:Array<String>) = runBlocking<Unit> {
+fun main(args:Array<String>)  {
     if (args.size < 2) {
         System.err.println("required arguments: <steam web API key> [player]...")
     }
