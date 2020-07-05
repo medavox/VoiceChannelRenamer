@@ -30,7 +30,7 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     //can also use this to create a list of recent players, to reduce player effort after first use
     val pp1 = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
     pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
-        steamApi.getSteamId(vanityOrHash)
+        steamApi.getSteamIdForVanityName(vanityOrHash)
     }, NUM_THREADS)
     // Get the request contents without blocking threads, but wait until all requests are done.
     val playerIDs:List<String> = pp1.collectOutputWhenFinished().filterNotNull()

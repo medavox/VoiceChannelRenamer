@@ -23,7 +23,7 @@ fun buildNameCache(key: String, vararg players: String) {
     //get 64-bit steam ID from 'vanityName' (mine is addham):
     val pp1 = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
     pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
-        steamApi.getSteamId(vanityOrHash)
+        steamApi.getSteamIdForVanityName(vanityOrHash)
     }, NUM_THREADS)
     val playerIDs:List<String> = pp1.collectOutputWhenFinished().filterNotNull()
 
