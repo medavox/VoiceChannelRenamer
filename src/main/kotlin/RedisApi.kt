@@ -36,12 +36,20 @@ class RedisApi : AutoCloseable {
         if(jedis.exists("$APP_ID_KEY_PREFIX$appid") ) jedis.get("$APP_ID_KEY_PREFIX$appid") else null
     }
 
+    fun hasGameNameForAppId(appid:Int):Boolean = pool.resource.use { jedis ->
+        jedis.exists("$APP_ID_KEY_PREFIX$appid")
+    }
+
     fun setSteamIdForVanityName(vanityName:String, steamid:String):Boolean = pool.resource.use { jedis ->
         jedis.set(VANITY_ID_KEY_PREFIX+vanityName, steamid) == "OK"
     }
 
     fun getSteamIdForVanityName(vanityName:String):String? = pool.resource.use { jedis ->
         jedis.get(VANITY_ID_KEY_PREFIX+vanityName)
+    }
+
+    fun hasSteamIdForVanityName(vanityName:String):Boolean = pool.resource.use { jedis ->
+        jedis.exists(VANITY_ID_KEY_PREFIX+vanityName)
     }
 
     fun setGamesForPlayer(steamid:String, vararg gameAppids:String): Unit = pool.resource.use { jedis ->
@@ -53,6 +61,10 @@ class RedisApi : AutoCloseable {
         jedis.smembers(OWNED_GAMES_KEY_PREFIX+steamid)
     }
 
+    fun hasGamesForPlayer(steamid:String):Boolean= pool.resource.use { jedis ->
+        jedis.exists(OWNED_GAMES_KEY_PREFIX+steamid)
+    }
+
     /**Returns the current nickname for the player, or null if no data was found
      * eg for player with vanityId "addham", the function would return "Mr. Gherkin"*/
     fun getNickForPlayer(steamid:String):String? = pool.resource.use { jedis ->
@@ -62,6 +74,11 @@ class RedisApi : AutoCloseable {
     /**@return false if the data wasn't added because the key already exists*/
     fun setNickForPlayer(steamid:String, nick:String):Boolean = pool.resource.use { jedis ->
         jedis.set(NICKNAME_KEY_PREFIX+steamid, nick, SetParams().ex(PLAYER_NICKNAME_EXPIRY_TIME_SECONDS)) == "OK"
+    }
+
+    /**Whether redis contains a nickname entry for this key.*/
+    fun hasNickForPlayer(steamid:String):Boolean = pool.resource.use { jedis ->
+        jedis.exists(NICKNAME_KEY_PREFIX+steamid)
     }
 
     //we don't need to store the friends for a given player as its own structure (at least not yet),
