@@ -83,113 +83,55 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     //http://store.steampowered.com/api/appdetails/?appids=
     val missingDataIds:MutableSet<String> = mutableSetOf()
 
-    //initialise cache from local file
-    //val cachedIdNameEntries:Map<String, String> =//todo: figure out how to load local resource files on common?
-    //println("${gameIds.size} game IDs to lookup")
-    /*
-    gameIds.forEach { appid ->
+    /*gameIds.forEach { appid ->
         val highTimeoutClient = HttpClient() {
             install(HttpTimeout) {
                 // timeout config
                 requestTimeoutMillis = 30_000
             }
         }
+        if (cachedNames.getProperty(appid) != null) {
+            //println("found $appid in cache: ${cachedNames.getProperty(appid)}")
+            gameIdsToNames.put(appid, cachedNames.getProperty(appid))
+        } else {
+            //println("$appid not found in cache; trying steam web API...")
+            //println("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid")
+            val schemaDeferred = async {
+                highTimeoutClient.get<String>(
+                        "http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid"
+                )
+            }.await()
+            //despite the name 'appids', the store API no longer supports multiple appids, for some unknown reason:
+            //https://www.reddit.com/r/Steam/comments/2kz2ay/steam_store_api_multiple_app_id_lists_no_longer/
+            //println("rawdata length: ${schemaDeferred.length}")
+            val gameSchema: JsonObject? = json.parseJson(schemaDeferred).jsonObject["game"]?.jsonObject
+            if (gameSchema == null || !gameSchema.containsKey("gameName")) {
+                //problem: sometimes, the game data retrieved by this route is empty
+                //so we have to perform some workarounds, as described in the above reddit post
 
-        //println("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid")
-        val nameOfIdDeferred = async {
-            highTimeoutClient.get<String>(
-                    "http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid"
-            )
-        }
-        //despite the name 'appids', the store API no longer supports multiple appids, for some unknown reason:
-        //https://www.reddit.com/r/Steam/comments/2kz2ay/steam_store_api_multiple_app_id_lists_no_longer/
-        val schemaDeferred = nameOfIdDeferred.await()
-        //println("rawdata length: ${schemaDeferred.length}")
-        val gameSchema:JsonObject? = json.parseJson(schemaDeferred).jsonObject["game"]?.jsonObject
-        var gameName:String? = null
-        if(gameSchema == null || !gameSchema.containsKey("gameName")) {
-            //problem: sometimes, the game data retrieved by this route is empty
-            //so we have to perform some workarounds, as described in the above reddit post
 
+                //1. check the local cachefile (CSV) for game name
+                //if that fails, add it to the backupApi query list
+                //http://store.steampowered.com/api/appdetails/?appids=<only one appid>
+                //the above query blocks you with status 429 if you hit it roughly more than 200 times in 5 minutes, apparently
 
-            //1. check the local cachefile (CSV) for game name
-            //if that fails, add it to the backupApi query list
-            //http://store.steampowered.com/api/appdetails/?appids=<only one appid>
-            //the above query blocks you with status 429 if you hit it roughly more than 200 times in 5 minutes, apparently
-            //option C:
-            //https://store.steampowered.com/app/<appid>
-            //find the human-readable name in the raw HTML of the store page:
-            // <div class="apphub_AppName">{human-readable name}</div>
-            missingDataIds.add(appid)
-        }else {//the game data exists, so get the name from it
-            //ANOTHER PROBLEM: sometimes, the name is replaced with "ValveTestApp<AppId>"
-            //so for AppId 72850, it's ValveTestApp72850
-            val possibleName = gameSchema["gameName"].toString().trim { it == '"' }
-            if(possibleName.startsWith("ValveTestApp") || possibleName.contains("UntitledApp") || possibleName.isBlank() || possibleName.isEmpty()) {
-                //bollocks
                 missingDataIds.add(appid)
-            } else {//it actually is fine
-                gameIdsToNames.put(appid, possibleName)
-                println("$appid: ${possibleName ?: "<null>"}")
+            } else {//the game data exists, so get the name from it
+                //ANOTHER PROBLEM: sometimes, the name is replaced with "ValveTestApp<AppId>"
+                //so for AppId 72850, it's ValveTestApp72850
+                val possibleName = gameSchema["gameName"].toString().trim { it == '"' }
+                if (!possibleName.startsWith("ValveTestApp") && !possibleName.contains("UntitledApp") && !possibleName.isBlank() && !possibleName.isEmpty()) {//it actually is fine
+                    println("found name for $appid: $possibleName")
+                    cachedNames.setProperty(appid, possibleName)
+                    gameIdsToNames.put(appid, possibleName)
+                } else {
+                    //bollocks
+                    println("$appid was missing from web API")
+                    missingDataIds.add(appid)
+                }
             }
         }
-    }
-    println("${missingDataIds.size} or ${(missingDataIds.size*1000) / gameIds.size }‰ of name lookups failed")*/
-
-    /*the now-deleted, but possibly more-updated version of the same code as above. TODO: manually merge these
-    gameIds.forEach { appid ->
-            val highTimeoutClient = HttpClient() {
-                install(HttpTimeout) {
-                    // timeout config
-                    requestTimeoutMillis = 30_000
-                }
-            }
-            if (cachedNames.getProperty(appid) != null) {
-                //println("found $appid in cache: ${cachedNames.getProperty(appid)}")
-                gameIdsToNames.put(appid, cachedNames.getProperty(appid))
-            } else {
-                //println("$appid not found in cache; trying steam web API...")
-                //println("http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid")
-                val schemaDeferred = async {
-                    highTimeoutClient.get<String>(
-                            "http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid"
-                    )
-                }.await()
-                //despite the name 'appids', the store API no longer supports multiple appids, for some unknown reason:
-                //https://www.reddit.com/r/Steam/comments/2kz2ay/steam_store_api_multiple_app_id_lists_no_longer/
-                //println("rawdata length: ${schemaDeferred.length}")
-                val gameSchema: JsonObject? = json.parseJson(schemaDeferred).jsonObject["game"]?.jsonObject
-                if (gameSchema == null || !gameSchema.containsKey("gameName")) {
-                    //problem: sometimes, the game data retrieved by this route is empty
-                    //so we have to perform some workarounds, as described in the above reddit post
-
-
-                    //1. check the local cachefile (CSV) for game name
-                    //if that fails, add it to the backupApi query list
-                    //http://store.steampowered.com/api/appdetails/?appids=<only one appid>
-                    //the above query blocks you with status 429 if you hit it roughly more than 200 times in 5 minutes, apparently
-                    //option C:
-                    //https://store.steampowered.com/app/<appid>
-                    //find the human-readable name in the raw HTML of the store page:
-                    // <div class="apphub_AppName">{human-readable name}</div>
-                    //Regex("<title>(?:Save \\d{1,3}% on )?(.+) on Steam</title>")
-                    missingDataIds.add(appid)
-                } else {//the game data exists, so get the name from it
-                    //ANOTHER PROBLEM: sometimes, the name is replaced with "ValveTestApp<AppId>"
-                    //so for AppId 72850, it's ValveTestApp72850
-                    val possibleName = gameSchema["gameName"].toString().trim { it == '"' }
-                    if (!possibleName.startsWith("ValveTestApp") && !possibleName.contains("UntitledApp") && !possibleName.isBlank() && !possibleName.isEmpty()) {//it actually is fine
-                        println("found name for $appid: $possibleName")
-                        cachedNames.setProperty(appid, possibleName)
-                        gameIdsToNames.put(appid, possibleName)
-                    } else {
-                        //bollocks
-                        println("$appid was missing from web API")
-                        missingDataIds.add(appid)
-                    }
-                }
-            }
-        }*/
+    }*/
     return nameMappings
 }
 
