@@ -158,10 +158,10 @@ fun buildNameCache(key: String, vararg players: String) {
         val failures = results.count { it == null }
         println("$failures or ${(failures*1000) / gameIds.size }‰ of name lookups failed")
     } finally {
-        //write out any newly retrieved game names to the .properties cachefile
         println("writing new entries to file...")
-        val fos = FileOutputStream(cacheFile)
+        //todo: reimplement
+/*        val fos = FileOutputStream(cacheFile)
         cachedNames.store(fos, "")
-        fos.close()
+        fos.close()*/
     }
 }
