@@ -103,6 +103,11 @@ class RedisApi : AutoCloseable {
         }
     }
 
+    /**Loads the JSON file of 100k+ app ID:game name mappings
+     * (downloaded with https://api.steampowered.com/ISteamApps/GetAppList/v2/?key=XXXXX)
+     *  into the local Redis database.
+     *
+     *  @param input the filename of the JSON data to load into the redis db*/
     fun bulkReadJsonAppList(input:String) {
         val jsonParser = Json(JsonConfiguration.Stable)
         val jsonFile = File(input)

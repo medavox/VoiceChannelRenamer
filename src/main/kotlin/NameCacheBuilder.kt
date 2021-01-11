@@ -8,7 +8,16 @@ import okhttp3.Response
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
-/**Downloads names for app IDs using several different HTTP routes,
+
+
+/**OLD: builds a map of app id to game name mappings, by querying the owned games of a list of supplied play ids.
+ * finds the game name from the app ID using a number of partially-reliable API routes provided by steam;
+ * this technique has been superseded by using this route to download all 100k+ mappings as JSON:
+ * https://api.steampowered.com/ISteamApps/GetAppList/v2/?key=XXXXX
+ *
+ * But the various routes listed here may still prove useful in the future.
+ *
+ * Downloads names for app IDs using several different HTTP routes,
  * to build a local game_name_cache.properties file that can be packaged with all versions of this app,
  * saving having to download again on every instance
  * (speeds up the app, and reduces strain on our API Key's usage limits)*/
@@ -60,8 +69,8 @@ fun buildNameCache(key: String, vararg players: String) {
     //http://store.steampowered.com/api/appdetails/?appids=
 
 
-    println("${gameNameCache.size} game name mappings in local map")
-    val cachedNames:MutableMap<Int, String> = gameNameCache.toMutableMap()
+    //println("${gameNameCache.size} game name mappings in local map")
+    val cachedNames:MutableMap<Int, String> = mutableMapOf()
     //val cachedIdNameEntries:Map<String, String> =//todo: figure out how to load local resource files on common?
     println("${gameIds.size} game IDs to lookup")
     try {
