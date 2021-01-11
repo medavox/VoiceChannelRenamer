@@ -33,7 +33,6 @@ java {
     sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
-
 /*val run by tasks.creating(JavaExec::class) {
     group = "application"
     main = "com.jetbrains.handson.introMpp.MainKt"

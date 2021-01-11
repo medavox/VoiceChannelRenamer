@@ -108,7 +108,7 @@ class SteamApi(
         }
     }
 
-    /**Gets the current nickname for each provided player, or an empty map null if the query failed for some reason.*/
+    /**Gets the current nickname for each provided player, or an empty map if the query failed for some reason.*/
     fun getNicksForPlayerIds(vararg steamids:String):Map<String, String> {
         val url = steamids.fold(
                 "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=$key&steamids="

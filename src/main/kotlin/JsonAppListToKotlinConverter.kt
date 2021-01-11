@@ -50,8 +50,8 @@ object JsonAppListToKotlinConverter {
 private fun String.s(start:Int?, end:Int?, step:Int?=null):String {
     var reversed = false
     val actualStep = when {
-        step == null -> 1
-        step < 0 -> {
+        (step == null) -> 1
+        (step < 0) -> {
             reversed = true
             step * -1
         }

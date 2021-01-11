@@ -17,6 +17,7 @@ class RedisApi : AutoCloseable {
         val VANITY_ID_KEY_PREFIX = "steamIdFor:"
         val OWNED_GAMES_KEY_PREFIX = "gamesOwnedBy:"
         val NICKNAME_KEY_PREFIX = "nicknameOf:"
+        val PLAYTIME_STATS_PER_PLAYER_KEY_PREFIX = "playtimeForPlayer&Game:"
 
         /**The amount of time that the list of games a player owns will be cached for*/
         val GAMES_LIST_CACHE_EXPIRY_TIME_SECONDS = 900//15 minutes
@@ -40,6 +41,8 @@ class RedisApi : AutoCloseable {
         jedis.exists("$APP_ID_KEY_PREFIX$appid")
     }
 
+
+
     fun setSteamIdForVanityName(vanityName:String, steamid:String):Boolean = pool.resource.use { jedis ->
         jedis.set(VANITY_ID_KEY_PREFIX+vanityName, steamid) == "OK"
     }
@@ -51,6 +54,8 @@ class RedisApi : AutoCloseable {
     fun hasSteamIdForVanityName(vanityName:String):Boolean = pool.resource.use { jedis ->
         jedis.exists(VANITY_ID_KEY_PREFIX+vanityName)
     }
+
+
 
     fun setGamesForPlayer(steamid:String, vararg gameAppids:String): Unit = pool.resource.use { jedis ->
         jedis.sadd(OWNED_GAMES_KEY_PREFIX+steamid, *gameAppids)
@@ -64,6 +69,8 @@ class RedisApi : AutoCloseable {
     fun hasGamesForPlayer(steamid:String):Boolean= pool.resource.use { jedis ->
         jedis.exists(OWNED_GAMES_KEY_PREFIX+steamid)
     }
+
+
 
     /**Returns the current nickname for the player, or null if no data was found
      * eg for player with vanityId "addham", the function would return "Mr. Gherkin"*/
@@ -105,7 +112,7 @@ class RedisApi : AutoCloseable {
         //but fuck it, we only need to do this once
         //{"applist":{"apps":[{"appid":216938,"name":"Pieterw test app76 ( 216938 )"},{"appid":660010,"name":"test2"},
         val gamesArray: JsonArray = jsonParser.parseJson(jsonFile.readText()).jsonObject["applist"]?.
-        jsonObject?.get("apps")?.jsonArray ?: throw NullPointerException("json array was null!")
+            jsonObject?.get("apps")?.jsonArray ?: throw NullPointerException("json array was null!")
 
 
         println("json array size: ${gamesArray.size}")
