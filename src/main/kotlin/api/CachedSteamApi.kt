@@ -62,11 +62,18 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
         }
     }
 
+    /**Accepts a 17-digit steam ID OR a vanity ID, and outputs a 17-digit steam ID.
+     * Returns null if
+     * 1. a vanity ID was passed,
+     * 2. whose steam ID is not already cached locally and
+     * 3. something went wrong with the HTTP query to retrieve it from Steam's web API*/
     fun guaranteeSteamId(convertableToSteamId:String):String? {
         return if (convertableToSteamId.matches(Regex("\\d{17}"))) {//is already a SteamId
             convertableToSteamId
-        } else {
-            TODO()
+        } else if(redisApi.hasSteamIdForVanityName(convertableToSteamId)) {//the SteamId is cached locally in redis
+            redisApi.getSteamIdForVanityName(convertableToSteamId)
+        } else {//needs converting via the steam api
+            getSteamIdForVanityName(convertableToSteamId)
         }
     }
 }
