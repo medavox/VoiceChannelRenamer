@@ -2,5 +2,4 @@ src/main/kotlin/GameNameCacheBuilderMain.kt
 .idea/
 .gradle/
 build/
-src/main/kotlin/InitWithToken.kt
-src/main/kotlin/MainWithKey.kt
+src/main/kotlin/Secrets.kt
