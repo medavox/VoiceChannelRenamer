@@ -108,19 +108,21 @@ class RedisApi : AutoCloseable {
      *  into the local Redis database.
      *
      *  @param input the filename of the JSON data to load into the redis db*/
-    fun bulkReadJsonAppList(input:String) {
-        val jsonParser = Json(JsonConfiguration.Stable)
-        val jsonFile = File(input)
+    fun bulkReadJsonAppList(jsonFile:File) {
+
         if (!jsonFile.exists() || jsonFile.length() == 0L) {
             System.err.println("ERROR: input file \"${jsonFile.name}\" is empty or doesn't exist!")
             return
         }
+        bulkReadJsonAppList(jsonFile.readText())
+    }
+    fun bulkReadJsonAppList(inputJson:String) {
         //it's bad practice to read a 5MB file into memory all at once,
         //but fuck it, we only need to do this once
         //{"applist":{"apps":[{"appid":216938,"name":"Pieterw test app76 ( 216938 )"},{"appid":660010,"name":"test2"},
-        val gamesArray: JsonArray = jsonParser.parseJson(jsonFile.readText()).jsonObject["applist"]?.
-            jsonObject?.get("apps")?.jsonArray ?: throw NullPointerException("json array was null!")
-
+        val jsonParser = Json(JsonConfiguration.Stable)
+        val gamesArray: JsonArray = jsonParser.parseJson(inputJson).jsonObject["applist"]?.
+        jsonObject?.get("apps")?.jsonArray ?: throw NullPointerException("json array was null!")
 
         println("json array size: ${gamesArray.size}")
         //println("read \"${jsonFile.name}\". new in-memory properties size: ${cache.size}")
