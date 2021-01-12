@@ -52,6 +52,6 @@ tasks.withType<com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar> {
     minimize()
     manifest {
         attributes["Implementation-Version"] = version
-        attributes["Main-Class"] = "JvmMainKt"
+        attributes["Main-Class"] = "MainKt"
     }
 }
