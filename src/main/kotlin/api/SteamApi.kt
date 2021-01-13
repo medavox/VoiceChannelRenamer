@@ -22,7 +22,7 @@ class SteamApi(
         return client.newCall(request).execute().use { response ->
             val responseString = response.body?.string()
 
-            if (responseString == null) println("ERROR: got null response for ID $vanityName")
+            if (responseString.isNullOrBlank()) println("ERROR: got null response for ID $vanityName")
             responseString?.let {
                 json.parseJson(responseString).jsonObject["response"]?.jsonObject?.get("steamid")?.toString()
                         ?.trim { c -> c == '"' }

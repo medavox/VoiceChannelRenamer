@@ -1,3 +1,4 @@
+import api.CachedSteamApi
 import api.RedisApi
 import api.SteamApi
 import kotlinx.serialization.json.Json
@@ -18,11 +19,15 @@ import java.util.concurrent.TimeUnit
  *   4) the average playtime is above a certain amount (total group playtime divided by number of players)
  *   5) at least one player has played before*/
 fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
+    println("${players.size} players: ")
+    players.forEach { println(it) }
     val debug = false
     val NUM_THREADS = 6
     val client = OkHttpClient.Builder()/*.followRedirects(false)*/.callTimeout(30, TimeUnit.SECONDS).build()
     val json = Json(JsonConfiguration.Stable)
     val steamApi = SteamApi(key, client, json)
+    val redisApi = RedisApi()
+    val cachedSteamApi = CachedSteamApi(redisApi, steamApi)
 
     //STEP 1
     //=====================================
@@ -32,15 +37,16 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     //can also use this to create a list of recent players, to reduce player effort after first use
     val pp1 = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
     pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
-        steamApi.getSteamIdForVanityName(vanityOrHash)
+        cachedSteamApi.guaranteeSteamId(vanityOrHash)
     }, NUM_THREADS)
     // Get the request contents without blocking threads, but wait until all requests are done.
-    val playerIDs:List<String> = pp1.collectOutputWhenFinished().filterNotNull()
-
+    val playerIDsNullable:List<String?> = pp1.collectOutputWhenFinished()//.filterNotNull()
+    val playerIDs:List<String> = playerIDsNullable.filterNotNull()
+    println("mapped steam IDs:")
     //todo: also load the friends of the provided URLs,
     //then allow the user to select from the list
 
-    players.forEachIndexed { i, s -> println("$s: ${playerIDs[i]}") }
+    players.forEachIndexed { i, s -> println("$s: ${playerIDsNullable[i]}") }
 
     //STEP 2
     //=====================================
@@ -50,16 +56,16 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     println("\n-----------------------------------------------------------------------")
     println("getting list of owned games for each steam ID (profiles must be public):")
     println("-----------------------------------------------------------------------\n")
-    val pp2 = ParallelProcess<String, Pair<String, List<String>?>>().finishWhenQueueIsEmpty()
+    val pp2 = ParallelProcess<String, Pair<String, Set<String>?>>().finishWhenQueueIsEmpty()
     pp2.workerPoolOnMutableQueue(LinkedBlockingQueue(playerIDs), { playerId: String ->
-        Pair(playerId, steamApi.getGamesOwnedByPlayer(playerId))
+        Pair(playerId, cachedSteamApi.getGamesForPlayer(playerId))
     }, NUM_THREADS)
 
-    val ownedGames:Map<String, List<String>?> = pp2.collectOutputWhenFinished().filterNotNull().toMap()
+    val ownedGames:Map<String, Set<String>?> = pp2.collectOutputWhenFinished().filterNotNull().toMap()
 
 
     //work out which IDs are common to all given players
-    val justTheGames: List<List<String>> = ownedGames.values.filterNotNull()
+    val justTheGames: List<Set<String>> = ownedGames.values.filterNotNull()
     var commonToAll = justTheGames[0].toSet()
     for(i in 1 until justTheGames.size) {
         commonToAll = commonToAll.intersect(justTheGames[i])
@@ -70,9 +76,8 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     //convert each app ID to its game name
     //=====================================
     //lookup names in Redis
-    val r = RedisApi()
     val nameMappings = commonToAll.associateWith { appid ->
-        r.getGameNameForAppId(appid.toInt())
+        cachedSteamApi.getGameNameForAppId(appid.toInt())
     }
     nameMappings.forEach { if(it.value == null ) println(it.key) else println(it.value) }
 

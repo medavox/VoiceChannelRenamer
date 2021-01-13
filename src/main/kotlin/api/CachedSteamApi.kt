@@ -50,7 +50,7 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
         }
     }
 
-    fun getSteamIdForVanityName(vanityName:String):String? {
+    private fun getSteamIdForVanityName(vanityName:String):String? {
         return if(redisApi.hasSteamIdForVanityName(vanityName)) {
             redisApi.getSteamIdForVanityName(vanityName)
         } else {
@@ -70,10 +70,6 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
     fun guaranteeSteamId(convertableToSteamId:String):String? {
         return if (convertableToSteamId.matches(Regex("\\d{17}"))) {//is already a SteamId
             convertableToSteamId
-        } else if(redisApi.hasSteamIdForVanityName(convertableToSteamId)) {//the SteamId is cached locally in redis
-            redisApi.getSteamIdForVanityName(convertableToSteamId)
-        } else {//needs converting via the steam api
-            getSteamIdForVanityName(convertableToSteamId)
-        }
+        } else getSteamIdForVanityName(convertableToSteamId)
     }
 }
