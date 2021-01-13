@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit
  *   4) the average playtime is above a certain amount (total group playtime divided by number of players)
  *   5) at least one player has played before*/
 fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
-    println("${players.size} players: ")
-    players.forEach { println(it) }
+    //println("${players.size} players: ")
+    //players.forEach { println(it) }
     val debug = false
     val NUM_THREADS = 6
     val client = OkHttpClient.Builder()/*.followRedirects(false)*/.callTimeout(30, TimeUnit.SECONDS).build()
@@ -71,7 +71,9 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
         commonToAll = commonToAll.intersect(justTheGames[i])
     }
 
-    println("${commonToAll.size} games common to all")
+    val playerNicknames:Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
+
+    println("${commonToAll.size} games common to ${playerIDs.size} players ${playerNicknames.values}")
 
     //convert each app ID to its game name
     //=====================================
@@ -79,13 +81,30 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     val nameMappings = commonToAll.associateWith { appid ->
         cachedSteamApi.getGameNameForAppId(appid.toInt())
     }
-    nameMappings.forEach { if(it.value == null ) println(it.key) else println(it.value) }
+
+    nameMappings.forEach { if(it.value == null ) println("\t"+it.key) else println("\t"+it.value) }
+
+    //find games that only one person doesn't own: PEER PRESSURE!
+    if(playerIDs.size > 2) {
+        val allButOnes:Map<String, Set<String>> = playerIDs.associateWith { oddOneOut ->
+            val gamesOwnedByEveryoneElse = ownedGames.minus(oddOneOut)
+            val commonToEveryoneElse = gamesOwnedByEveryoneElse.values.filterNotNull().reduce { acc: Set<String>, elem: Set<String> ->
+                acc.intersect(elem)
+            }
+            /*val ownedByEveryoneElse = */commonToEveryoneElse.minus(ownedGames[oddOneOut]!!)
+        }
+        allButOnes.forEach {
+            if (allButOnes[it.key]?.isNotEmpty() == true) {
+                println("\nGames owned by everyone but ${playerNicknames[it.key] ?: it.key}:")
+                allButOnes[it.key]?.forEach { appId ->
+                    println("\t${cachedSteamApi.getGameNameForAppId(appId.toInt())}")
+                }
+            }
+        }
+    }
 
     //http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=218620
-    val gameIdsToNames:MutableMap<String, String> = mutableMapOf()
-
     //http://store.steampowered.com/api/appdetails/?appids=
-    val missingDataIds:MutableSet<String> = mutableSetOf()
 
     return nameMappings
 }
