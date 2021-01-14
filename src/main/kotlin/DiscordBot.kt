@@ -89,7 +89,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                 channel.sendMessage("command not recognised. Try `!sgic`, `!friendsof` or `!help`").queue()
             }
         } catch(owt:Throwable) {
-            channel.sendMessage("Woops! something went wrong at my end (||${owt.javaClass.name}||). Try again?").queue()
+            channel.sendMessage("Woops! something went wrong at my end (tech jargon:||${owt.javaClass.name}||). Try again?").queue()
             throw owt
         }
     }
@@ -116,6 +116,8 @@ Commands:
 
 !help (also works in public channels)
 displays this text
+
+If you can program (or are curious), the source code for this bot is at https://github.com/medavox/
 """
 
 fun main() {
