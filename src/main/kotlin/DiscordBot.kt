@@ -4,6 +4,7 @@ import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class DiscordBot : ListenerAdapter() {
@@ -15,25 +16,21 @@ class DiscordBot : ListenerAdapter() {
     private fun splitLongMessage(longMessage:String):List<String> {
         if(longMessage.length < DISCORD_MAX_MESSAGE_LENGTH) return listOf(longMessage)
         val numberOfSplitPoints = longMessage.length / DISCORD_MAX_MESSAGE_LENGTH
-        val r = Regex("\n")
-        val newlineIndices = r.findAll(longMessage)
-        val splitPoints = mutableListOf<Int>()
+        val splitPoints = mutableListOf<Int>(0)
+
         for( i in 1..numberOfSplitPoints) {
             val splitIndex = i * DISCORD_MAX_MESSAGE_LENGTH
-            splitPoints.add(longMessage.filterIndexed { index, c ->
-                index < splitIndex && c == '\n'
-            }.lastIndex)
+            val backwardsSearchString = longMessage.substring(0, splitIndex)//only cut the end off, so we don't affect the indices
+            val splitPoint = backwardsSearchString.indexOfLast { it == '\n' }
+            splitPoints.add(splitPoint)
         }
+        //println("split points for message of length ${longMessage.length}: "+splitPoints)
         //find the \n whose index is highest, but < 2000
         val messageChunks = mutableListOf<String>()
-        var splitPoint = 0
-        var i = 0
-        while(splitPoint < longMessage.length) {
-            messageChunks.add(longMessage.substring(splitPoint, splitPoints[i]))
-            splitPoint = splitPoints[i]
-            i++
+        for (i in 0 until splitPoints.size-1) {
+            messageChunks.add(longMessage.substring(splitPoints[i], splitPoints[i+1]))
         }
-        messageChunks.add(longMessage.substring(splitPoints[i], longMessage.length))
+        messageChunks.add(longMessage.substring(splitPoints[splitPoints.size-1], longMessage.length))
         return messageChunks
     }
     override fun onMessageReceived(event: MessageReceivedEvent) {
