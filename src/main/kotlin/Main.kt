@@ -37,7 +37,7 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
     pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
         val guaranteed = cachedSteamApi.guaranteeSteamId(vanityOrHash)
         if(guaranteed == null) {
-            sb.appendln("ERROR: couldn't find user with ID '$vanityOrHash'")
+            sb.appendln("ERROR: no public steam profile found matching '$vanityOrHash'")
         }
         guaranteed
     }, NUM_THREADS)
@@ -48,9 +48,6 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
         return sb.toString()
     }
     println("mapped steam IDs:")
-    //todo: also load the friends of the provided URLs,
-    //then allow the user to select from the list
-
     players.forEachIndexed { i, s -> println("$s: ${playerIDsNullable[i]}") }
 
     //STEP 2
@@ -77,7 +74,9 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
 
     val playerNicknames:Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
 
-    sb.appendln("${commonToAll.size} games common to all ${playerIDs.size} players ${playerNicknames.values}:")
+    sb.appendln("**${if(commonToAll.size==0) "No" else commonToAll.size.toString()} " +
+            "games found in common for ${playerIDs.size} players " +
+            "${playerNicknames.values.toString().trim{ it == '[' || it == ']'} }:**")
 
     //convert each app ID to its game name
     //=====================================
@@ -99,7 +98,7 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
         }
         allButOnes.forEach {
             if (allButOnes[it.key]?.isNotEmpty() == true) {
-                sb.appendln("\n\n${allButOnes[it.key]?.size ?: ""} Games owned by everyone but ${playerNicknames[it.key] ?: it.key}:")
+                sb.appendln("\n\n**${allButOnes[it.key]?.size ?: ""} Games owned by everyone but ${playerNicknames[it.key] ?: it.key}:**")
                 allButOnes[it.key]?.forEach { appId ->
                     sb.appendln("${cachedSteamApi.getGameNameForAppId(appId.toInt())}")
                 }

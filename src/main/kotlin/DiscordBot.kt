@@ -1,8 +1,5 @@
 import net.dv8tion.jda.api.JDABuilder
-import net.dv8tion.jda.api.entities.Activity
-import net.dv8tion.jda.api.entities.Message
-import net.dv8tion.jda.api.entities.MessageType
-import net.dv8tion.jda.api.entities.SelfUser
+import net.dv8tion.jda.api.entities.*
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
@@ -37,6 +34,18 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
         return messageChunks
     }
 
+    /**DMs anyone who posts a public message '!sgic' somewhere we can get it*/
+    override fun onMessageReceived(event: MessageReceivedEvent) {
+        super.onMessageReceived(event)
+        if(event.channel.type != ChannelType.PRIVATE) {
+            if (event.message.contentRaw == "!help") {
+                event.message.author.openPrivateChannel().queue { privChan ->
+                    privChan.sendMessage(helpText).queue()
+                }
+            }
+        }
+    }
+
     override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
         val msg: String = event.message.contentRaw
         val channel = event.channel
@@ -64,7 +73,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                 channel.sendMessage("command not recognised. Try `!sgic`, `!friendsof` or `!help`").queue()
             }
         } catch(owt:Throwable) {
-            channel.sendMessage("Woops! something went wrong at my end (${owt.javaClass.name}). Try again?").queue()
+            channel.sendMessage("Woops! something went wrong at my end (||${owt.javaClass.name}||). Try again?").queue()
             throw owt
         }
     }
