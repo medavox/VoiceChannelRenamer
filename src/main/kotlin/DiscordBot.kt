@@ -2,19 +2,22 @@ import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Activity
 import net.dv8tion.jda.api.entities.Message
 import net.dv8tion.jda.api.entities.MessageType
+import net.dv8tion.jda.api.entities.SelfUser
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
 
-class DiscordBot : ListenerAdapter() {
+class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
     private val DISCORD_MAX_MESSAGE_LENGTH = 2000
 
     /**Discord doesn't allow a single message to be longer than 2000 characters.
      * This function splits all messages into chunks smaller than that
      * */
     private fun splitLongMessage(longMessage:String):List<String> {
-        if(longMessage.length < DISCORD_MAX_MESSAGE_LENGTH) return listOf(longMessage)
+        if(longMessage.length < DISCORD_MAX_MESSAGE_LENGTH) {
+            return listOf(longMessage)
+        }
         val numberOfSplitPoints = longMessage.length / DISCORD_MAX_MESSAGE_LENGTH
         val splitPoints = mutableListOf<Int>(0)
 
@@ -24,7 +27,7 @@ class DiscordBot : ListenerAdapter() {
             val splitPoint = backwardsSearchString.indexOfLast { it == '\n' }
             splitPoints.add(splitPoint)
         }
-        //println("split points for message of length ${longMessage.length}: "+splitPoints)
+        println("split points for message of length ${longMessage.length}: "+splitPoints)
         //find the \n whose index is highest, but < 2000
         val messageChunks = mutableListOf<String>()
         for (i in 0 until splitPoints.size-1) {
@@ -37,6 +40,9 @@ class DiscordBot : ListenerAdapter() {
     override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
         val msg: String = event.message.contentRaw
         val channel = event.channel
+        if(event.message.author == selfUser) {//ignore our own messages
+            return
+        }
         try {
             if (msg.startsWith("!sgic ")) {
                 val arguments = msg.split(" ").let { it.subList(1, it.size) }.toTypedArray()
@@ -50,6 +56,12 @@ class DiscordBot : ListenerAdapter() {
                 }
             } else if (msg.startsWith("!friendsof ")) {
                 println("joy")
+            } else if (msg.contains("!help")) {
+                val s = splitLongMessage(helpText)
+                println("help text message chunks: "+s.size)
+                channel.sendMessage(helpText).queue()
+            } else {
+                channel.sendMessage("command not recognised. Try `!sgic`, `!friendsof` or `!help`").queue()
             }
         } catch(owt:Throwable) {
             channel.sendMessage("Woops! something went wrong at my end (${owt.javaClass.name}). Try again?").queue()
@@ -57,7 +69,7 @@ class DiscordBot : ListenerAdapter() {
         }
     }
 }
-private val helpText = """Find which games whoever's around can all play!
+private val helpText = """Find games everyone can play!
 
 In public channels, I only respond to !help.
 The main commands only work when you you DM me, for extra privacy.
@@ -83,8 +95,8 @@ displays this text
 
 fun main() {
     val jda = JDABuilder.createLight(discordToken, GatewayIntent.GUILD_MESSAGES, GatewayIntent.DIRECT_MESSAGES)
-        .addEventListeners(DiscordBot())
         .setActivity(Activity.listening("!help"))
         .build()
     jda.awaitReady()
+    jda.addEventListener(DiscordBot(jda.selfUser))
 }
