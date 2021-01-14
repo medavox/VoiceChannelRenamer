@@ -11,15 +11,15 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
     /**Discord doesn't allow a single message to be longer than 2000 characters.
      * This function splits all messages into chunks smaller than that
      * */
-    private fun splitLongMessage(longMessage:String):List<String> {
-        if(longMessage.length < DISCORD_MAX_MESSAGE_LENGTH) {
+    private fun splitLongMessage(longMessage:String, maxChunkSize:Int=DISCORD_MAX_MESSAGE_LENGTH):List<String> {
+        if(longMessage.length < maxChunkSize) {
             return listOf(longMessage)
         }
-        val numberOfSplitPoints = longMessage.length / DISCORD_MAX_MESSAGE_LENGTH
+        val numberOfSplitPoints = longMessage.length / maxChunkSize
         val splitPoints = mutableListOf<Int>(0)
 
         for( i in 1..numberOfSplitPoints) {
-            val splitIndex = i * DISCORD_MAX_MESSAGE_LENGTH
+            val splitIndex = i * maxChunkSize
             val backwardsSearchString = longMessage.substring(0, splitIndex)//only cut the end off, so we don't affect the indices
             val splitPoint = backwardsSearchString.indexOfLast { it == '\n' }
             splitPoints.add(splitPoint)
@@ -32,6 +32,14 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
         }
         messageChunks.add(longMessage.substring(splitPoints[splitPoints.size-1], longMessage.length))
         return messageChunks
+    }
+
+    private fun argumentsFromCommand(command:String):Array<String> {
+        return command.split(" ").
+            let { it.subList(1, it.size) }.
+            map { arg -> arg.trim()}.
+            filter { it.isNotBlank() && it.isNotEmpty() }.
+            toTypedArray()
     }
 
     /**DMs anyone who posts a public message '!sgic' somewhere we can get it*/
@@ -54,7 +62,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
         }
         try {
             if (msg.startsWith("!sgic ")) {
-                val arguments = msg.split(" ").let { it.subList(1, it.size) }.toTypedArray()
+                val arguments = argumentsFromCommand(msg)
                 if(arguments.size < 2) {
                     channel.sendMessage("please specify at least 2 steam IDs.").queue()
                     return
@@ -64,7 +72,15 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     channel.sendMessage(submessage).queue()
                 }
             } else if (msg.startsWith("!friendsof ")) {
-                println("joy")
+                val arguments = argumentsFromCommand(msg)
+                if(arguments.isEmpty()) {
+                    channel.sendMessage("please specify at least 1 steam ID.").queue()
+                    return
+                }
+                val results = friendsOf(steamWebApiKey, *arguments)
+                for (submessage in splitLongMessage(results, DISCORD_MAX_MESSAGE_LENGTH-10)) {
+                    channel.sendMessage("```\n$submessage\n```").queue()
+                }
             } else if (msg.contains("!help")) {
                 val s = splitLongMessage(helpText)
                 println("help text message chunks: "+s.size)

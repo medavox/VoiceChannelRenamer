@@ -144,7 +144,21 @@ fun friendsOf(key:String, vararg players:String): String {
     println("mapped steam IDs:")
     players.forEachIndexed { i, s -> println("$s: ${playerIDsNullable[i]}") }
 
-    return TODO()
+    val friends = mutableSetOf<String>()
+    for(player in playerIDs) {
+        val playersFriends = cachedSteamApi.getFriendsOfPlayer(player)
+        if(playersFriends != null) {
+            friends.addAll(playersFriends)
+        } else {
+            println("couldn't get friends of player '$player'")
+        }
+    }
+    val playerNicknames:Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
+    sb.appendln("Friends of ${playerNicknames.values.toString().trim{ it == '[' || it == ']'} }:")
+    friends.forEach { friendSteamId ->
+        sb.appendln(friendSteamId.trim { it == '"' }+" = "+cachedSteamApi.getNickForPlayer(friendSteamId))
+    }
+    return sb.toString()
 }
 
 fun main(args:Array<String>)  {
