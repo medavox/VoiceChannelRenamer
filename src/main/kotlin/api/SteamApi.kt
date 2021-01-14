@@ -13,7 +13,9 @@ class SteamApi(
     private val client: OkHttpClient = OkHttpClient(),
     private val json: Json = Json(JsonConfiguration.Stable)
 ) {
-    /**Gets 17-digit from a steam vanity ID, or a string that is already a 17-digit steam id.*/
+    /**Gets 17-digit from a steam vanity ID, or a string that is already a 17-digit steam id.
+     * get 64-bit steam ID from 'vanityName' (mine is addham)
+    only accepts one vanity name at a time, so it might be worth caching...*/
     fun getSteamIdForVanityName(vanityName: String): String? {
         val url = "http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key=$key&vanityurl=$vanityName&format=json"
         //if (debug) println(url)

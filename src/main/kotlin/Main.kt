@@ -11,7 +11,6 @@ import java.util.concurrent.TimeUnit
  * (https://steamcommunity.com/id/THIS_IS_YOUR_VANITY_NAME)
  *
  * Output: a list of games that the provided list of users all own
- * TODO: also list games which all-but-one player owns
  * TODO: include free games that:
  *   1) they have all played before
  *   2) a minimum number have played before
@@ -28,20 +27,26 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
     val steamApi = SteamApi(key, client, json)
     val redisApi = RedisApi()
     val cachedSteamApi = CachedSteamApi(redisApi, steamApi)
+    val sb = StringBuilder()
 
     //STEP 1
     //=====================================
     // request all player IDs asynchronously in parallel.
-    //get 64-bit steam ID from 'vanityName' (mine is addham):
-    //only accepts one vanity name at a time, so it might be worth caching...
     //can also use this to create a list of recent players, to reduce player effort after first use
     val pp1 = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
     pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
-        cachedSteamApi.guaranteeSteamId(vanityOrHash)
+        val guaranteed = cachedSteamApi.guaranteeSteamId(vanityOrHash)
+        if(guaranteed == null) {
+            sb.appendln("ERROR: couldn't find user with ID '$vanityOrHash'")
+        }
+        guaranteed
     }, NUM_THREADS)
     // Get the request contents without blocking threads, but wait until all requests are done.
     val playerIDsNullable:List<String?> = pp1.collectOutputWhenFinished()//.filterNotNull()
     val playerIDs:List<String> = playerIDsNullable.filterNotNull()
+    if(playerIDs.size != players.size) {
+        return sb.toString()
+    }
     println("mapped steam IDs:")
     //todo: also load the friends of the provided URLs,
     //then allow the user to select from the list
@@ -63,7 +68,6 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
 
     val ownedGames:Map<String, Set<String>?> = pp2.collectOutputWhenFinished().filterNotNull().toMap()
 
-
     //work out which IDs are common to all given players
     val justTheGames: List<Set<String>> = ownedGames.values.filterNotNull()
     var commonToAll = justTheGames[0].toSet()
@@ -72,8 +76,8 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
     }
 
     val playerNicknames:Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
-    val sb = StringBuilder()
-    sb.appendln("${commonToAll.size} games common to ${playerIDs.size} players ${playerNicknames.values}:")
+
+    sb.appendln("${commonToAll.size} games common to all ${playerIDs.size} players ${playerNicknames.values}:")
 
     //convert each app ID to its game name
     //=====================================
@@ -95,9 +99,9 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
         }
         allButOnes.forEach {
             if (allButOnes[it.key]?.isNotEmpty() == true) {
-                sb.appendln("\nGames owned by everyone but ${playerNicknames[it.key] ?: it.key}:")
+                sb.appendln("\n\n${allButOnes[it.key]?.size ?: ""} Games owned by everyone but ${playerNicknames[it.key] ?: it.key}:")
                 allButOnes[it.key]?.forEach { appId ->
-                    sb.appendln("\t${cachedSteamApi.getGameNameForAppId(appId.toInt())}")
+                    sb.appendln("${cachedSteamApi.getGameNameForAppId(appId.toInt())}")
                 }
             }
         }

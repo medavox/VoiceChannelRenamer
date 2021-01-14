@@ -3,6 +3,7 @@ package api
 import kotlinx.serialization.json.*
 import org.jsoup.parser.Parser
 import redis.clients.jedis.JedisPool
+import redis.clients.jedis.JedisPoolConfig
 import redis.clients.jedis.params.SetParams
 import java.io.File
 import java.lang.NullPointerException
@@ -28,7 +29,7 @@ class RedisApi : AutoCloseable {
 
     override fun close() = pool.close() // when closing your application
 
-    val pool:JedisPool = JedisPool("localhost", 1989)
+    val pool:JedisPool = JedisPool(JedisPoolConfig(), "localhost", 1989)
 
     /**@return false if the data wasn't added because the key already exists*/
     fun setGameNameForAppId(appid:Int, gameName:String):Boolean = pool.resource.use { jedis ->

@@ -1,11 +1,11 @@
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.Activity
 import net.dv8tion.jda.api.entities.Message
+import net.dv8tion.jda.api.entities.MessageType
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
+import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 class DiscordBot : ListenerAdapter() {
     private val DISCORD_MAX_MESSAGE_LENGTH = 2000
@@ -33,22 +33,58 @@ class DiscordBot : ListenerAdapter() {
         messageChunks.add(longMessage.substring(splitPoints[splitPoints.size-1], longMessage.length))
         return messageChunks
     }
-    override fun onMessageReceived(event: MessageReceivedEvent) {
+
+    override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
         val msg: String = event.message.contentRaw
-        if (msg.startsWith("!sgic ")) {
-            val channel = event.channel
-            val arguments = msg.split(" ").let { it.subList(1, it.size) }.toTypedArray()
-            val results = steamGamesInCommon(steamWebApiKey, *arguments)
-            for(submessage in splitLongMessage(results)) {
-                channel.sendMessage(submessage).queue()
+        val channel = event.channel
+        try {
+            if (msg.startsWith("!sgic ")) {
+                val arguments = msg.split(" ").let { it.subList(1, it.size) }.toTypedArray()
+                if(arguments.size < 2) {
+                    channel.sendMessage("please specify at least 2 steam IDs.").queue()
+                    return
+                }
+                val results = steamGamesInCommon(steamWebApiKey, *arguments)
+                for (submessage in splitLongMessage(results)) {
+                    channel.sendMessage(submessage).queue()
+                }
+            } else if (msg.startsWith("!friendsof ")) {
+                println("joy")
             }
+        } catch(owt:Throwable) {
+            channel.sendMessage("Woops! something went wrong at my end (${owt.javaClass.name}). Try again?").queue()
+            throw owt
         }
     }
 }
+private val helpText = """Find which games whoever's around can all play!
+
+In public channels, I only respond to !help.
+The main commands only work when you you DM me, for extra privacy.
+NOTE: the steam profile of every user must be public!
+
+Commands:
+
+!sgic <ID> <ID>...
+    (Steam Games In Common)
+    ID can be a steam ID (eg 76561197962146232) or a 'vanity name' (eg AbacusAvenger).
+    Lists games which all the specified users own. 
+    When more than 2 users are specified, also lists games that only one player doesn't own.
+
+    example: !sgic 
+
+!friendsof <ID> <ID>...
+    lists the steam friends of all the specified users.
+    Aan easier method to get steam IDs for the main !sgic command.
+
+!help (also works in public channels)
+displays this text
+"""
+
 fun main() {
     val jda = JDABuilder.createLight(discordToken, GatewayIntent.GUILD_MESSAGES, GatewayIntent.DIRECT_MESSAGES)
         .addEventListeners(DiscordBot())
-        .setActivity(Activity.listening("squelch"))
+        .setActivity(Activity.listening("!help"))
         .build()
     jda.awaitReady()
 }
