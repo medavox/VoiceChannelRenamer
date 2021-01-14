@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit
  *   3) a minimum percentage of the group has played before
  *   4) the average playtime is above a certain amount (total group playtime divided by number of players)
  *   5) at least one player has played before*/
-fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
+fun steamGamesInCommon(key:String, vararg players:String):String {
     //println("${players.size} players: ")
     //players.forEach { println(it) }
     val debug = false
@@ -72,17 +72,17 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     }
 
     val playerNicknames:Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
-
-    println("${commonToAll.size} games common to ${playerIDs.size} players ${playerNicknames.values}")
+    val sb = StringBuilder()
+    sb.appendln("${commonToAll.size} games common to ${playerIDs.size} players ${playerNicknames.values}:")
 
     //convert each app ID to its game name
     //=====================================
     //lookup names in Redis
-    val nameMappings = commonToAll.associateWith { appid ->
-        cachedSteamApi.getGameNameForAppId(appid.toInt())
-    }
+    val gamesInCommon:List<String> = commonToAll.map { appid ->
+        cachedSteamApi.getGameNameForAppId(appid.toInt()) ?: appid
+    }.sorted()
 
-    nameMappings.forEach { if(it.value == null ) println("\t"+it.key) else println("\t"+it.value) }
+    gamesInCommon.forEach { sb.appendln(it) }
 
     //find games that only one person doesn't own: PEER PRESSURE!
     if(playerIDs.size > 2) {
@@ -95,9 +95,9 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
         }
         allButOnes.forEach {
             if (allButOnes[it.key]?.isNotEmpty() == true) {
-                println("\nGames owned by everyone but ${playerNicknames[it.key] ?: it.key}:")
+                sb.appendln("\nGames owned by everyone but ${playerNicknames[it.key] ?: it.key}:")
                 allButOnes[it.key]?.forEach { appId ->
-                    println("\t${cachedSteamApi.getGameNameForAppId(appId.toInt())}")
+                    sb.appendln("\t${cachedSteamApi.getGameNameForAppId(appId.toInt())}")
                 }
             }
         }
@@ -106,7 +106,7 @@ fun steamGamesInCommon(key:String, vararg players:String):Map<String, String?> {
     //http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=218620
     //http://store.steampowered.com/api/appdetails/?appids=
 
-    return nameMappings
+    return sb.toString()
 }
 
 fun main(args:Array<String>)  {
