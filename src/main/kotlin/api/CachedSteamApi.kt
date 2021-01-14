@@ -50,6 +50,20 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
         }
     }
 
+    fun getFriendsOfPlayer(steamid: String):Set<String>? {
+        return if(redisApi.hasFriendsForPlayer(steamid)) {
+            redisApi.getFriendsForPlayer(steamid)
+        } else {
+            val friends:List<String> = steamApi.getFriendsOfPlayer(steamid)
+            if(friends.isEmpty()) {
+                setOf<String>()
+            }  else {
+                redisApi.setFriendsForPlayer(steamid, *(friends.toTypedArray()))
+                friends.toSet()
+            }
+        }
+    }
+
     private fun getSteamIdForVanityName(vanityName:String):String? {
         return if(redisApi.hasSteamIdForVanityName(vanityName)) {
             redisApi.getSteamIdForVanityName(vanityName)

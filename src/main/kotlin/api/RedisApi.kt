@@ -19,12 +19,13 @@ class RedisApi : AutoCloseable {
         val APP_ID_KEY_PREFIX = "appid:"
         val VANITY_ID_KEY_PREFIX = "steamIdFor:"
         val OWNED_GAMES_KEY_PREFIX = "gamesOwnedBy:"
+        val FRIENDS_KEY_PREFIX = "friendsOf:"
         val NICKNAME_KEY_PREFIX = "nicknameOf:"
         val PLAYTIME_STATS_PER_PLAYER_KEY_PREFIX = "playtimeForPlayer&Game:"
 
         /**The amount of time that the list of games a player owns will be cached for*/
-        val GAMES_LIST_CACHE_EXPIRY_TIME_SECONDS = 900//15 minutes
-        val PLAYER_NICKNAME_EXPIRY_TIME_SECONDS = 86400*3//3 days
+        val SHORT_EXPIRY_TIME_SECONDS = 900//15 minutes
+        val LONG_EXPIRY_TIME_SECONDS = 86400*3//3 days
     }
 
     override fun close() = pool.close() // when closing your application
@@ -62,7 +63,7 @@ class RedisApi : AutoCloseable {
 
     fun setGamesForPlayer(steamid:String, vararg gameAppids:String): Unit = pool.resource.use { jedis ->
         jedis.sadd(OWNED_GAMES_KEY_PREFIX +steamid, *gameAppids)
-        jedis.expire(OWNED_GAMES_KEY_PREFIX +steamid, GAMES_LIST_CACHE_EXPIRY_TIME_SECONDS)
+        jedis.expire(OWNED_GAMES_KEY_PREFIX +steamid, SHORT_EXPIRY_TIME_SECONDS)
     }
     /**returns a list of appids for the given player, or null if no data is found*/
     fun getGamesForPlayer(steamid:String):Set<String>? = pool.resource.use { jedis ->
@@ -74,6 +75,18 @@ class RedisApi : AutoCloseable {
     }
 
 
+    fun setFriendsForPlayer(steamid:String, vararg gameAppids:String): Unit = pool.resource.use { jedis ->
+        jedis.sadd(FRIENDS_KEY_PREFIX +steamid, *gameAppids)
+        jedis.expire(FRIENDS_KEY_PREFIX +steamid, SHORT_EXPIRY_TIME_SECONDS)
+    }
+    /**returns the friends of the given player, or null if no data is found*/
+    fun getFriendsForPlayer(steamid:String):Set<String>? = pool.resource.use { jedis ->
+        jedis.smembers(FRIENDS_KEY_PREFIX +steamid)
+    }
+
+    fun hasFriendsForPlayer(steamid:String):Boolean= pool.resource.use { jedis ->
+        jedis.exists(FRIENDS_KEY_PREFIX +steamid)
+    }
 
     /**Returns the current nickname for the player, or null if no data was found
      * eg for player with vanityId "addham", the function would return "Mr. Gherkin"*/
@@ -83,7 +96,7 @@ class RedisApi : AutoCloseable {
 
     /**@return false if the data wasn't added because the key already exists*/
     fun setNickForPlayer(steamid:String, nick:String):Boolean = pool.resource.use { jedis ->
-        jedis.set(NICKNAME_KEY_PREFIX +steamid, nick, SetParams().ex(PLAYER_NICKNAME_EXPIRY_TIME_SECONDS)) == "OK"
+        jedis.set(NICKNAME_KEY_PREFIX +steamid, nick, SetParams().ex(LONG_EXPIRY_TIME_SECONDS)) == "OK"
     }
 
     /**Whether redis contains a nickname entry for this key.*/

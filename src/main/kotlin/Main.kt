@@ -112,6 +112,41 @@ fun steamGamesInCommon(key:String, vararg players:String):String {
     return sb.toString()
 }
 
+fun friendsOf(key:String, vararg players:String): String {
+    val debug = false
+    val NUM_THREADS = 6
+    val client = OkHttpClient.Builder()/*.followRedirects(false)*/.callTimeout(30, TimeUnit.SECONDS).build()
+    val json = Json(JsonConfiguration.Stable)
+    val steamApi = SteamApi(key, client, json)
+    val redisApi = RedisApi()
+    val cachedSteamApi = CachedSteamApi(redisApi, steamApi)
+    val sb = StringBuilder()
+
+    //STEP 1
+    //=======
+    // request all player IDs asynchronously in parallel.
+    //can also use this to create a list of recent players, to reduce player effort after first use
+    val pp1 = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
+    pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
+        val guaranteed = cachedSteamApi.guaranteeSteamId(vanityOrHash)
+        if(guaranteed == null) {
+            sb.appendln("ERROR: no public steam profile found matching '$vanityOrHash'")
+        }
+        guaranteed
+    }, NUM_THREADS)
+
+    // Get the request contents without blocking threads, but wait until all requests are done.
+    val playerIDsNullable:List<String?> = pp1.collectOutputWhenFinished()//.filterNotNull()
+    val playerIDs:List<String> = playerIDsNullable.filterNotNull()
+    if(playerIDs.size != players.size) {
+        return sb.toString()
+    }
+    println("mapped steam IDs:")
+    players.forEachIndexed { i, s -> println("$s: ${playerIDsNullable[i]}") }
+
+    return TODO()
+}
+
 fun main(args:Array<String>)  {
     if (args.size < 2) {
         System.err.println("required arguments: <steam web API key> [player]...")
