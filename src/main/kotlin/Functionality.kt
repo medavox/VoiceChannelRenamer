@@ -133,23 +133,23 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         val possibleExceptions = mutableSetOf<Throwable>()
         val results = playerIDs.associateWith { playerId: String ->
             val playersFriends = cachedSteamApi.getFriendsOfPlayer(playerId)
-            if(playersFriends == null) {
-                possibleExceptions.add(SteamApiException())
-            } else if(playersFriends.isEmpty()) {
+            if(playersFriends == null || playersFriends.isEmpty()) {
                 possibleExceptions.add(PrivateFriendsException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId ))
             }
             playersFriends
-        }
+        }.filter { it.value != null && it.value!!.isNotEmpty() }
+        println("FRENDO keys: "+results.keys.size)
+        //report any issues with private friend lists, but don't abort
         if(possibleExceptions.isNotEmpty()) {
-            //something went wrong; throw the multi exception
-            throw MultiException(possibleExceptions)
+            possibleExceptions.mapNotNull {it.message}.forEach { traceln("ERROR: $it") }
         }
+        if(results.isEmpty()) return
 
         for (friendos:Set<String>? in results.values) {
             friendos?.let{friends.addAll(friendos)}
         }
-        traceln("Friends of ${playerNicknames.values.toString().trim { it == '[' || it == ']' }}:")
         playerNicknames += cachedSteamApi.getNicksForPlayerIds(*(friends.toTypedArray()))
+        traceln("Friends of ${results.keys.map { playerNicknames[it] ?: it }.toString().trim { it == '[' || it == ']' }}:")
         friends.forEach { friendSteamId ->
             traceln(friendSteamId.trim { it == '"' } + " = " + (playerNicknames[friendSteamId] ?: "<unknown>"))
         }

@@ -61,7 +61,7 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
         } else {
             val friends:List<String> = steamApi.getFriendsOfPlayer(steamid)
             if(friends.isEmpty()) {
-                setOf<String>()
+                null
             }  else {
                 redisApi.setFriendsForPlayer(steamid, *(friends.toTypedArray()))
                 friends.toSet()
