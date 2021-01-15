@@ -15,16 +15,21 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
      * This function splits all messages into chunks smaller than that
      * */
     private fun splitLongMessage(longMessage:String, maxChunkSize:Int=DISCORD_MAX_MESSAGE_LENGTH):List<String> {
+        println("max message length: $maxChunkSize")
         if(longMessage.length < maxChunkSize) {
             return listOf(longMessage)
         }
         val numberOfSplitPoints = longMessage.length / maxChunkSize
+        println("number of splits: $numberOfSplitPoints")
         val splitPoints = mutableListOf<Int>(0)
-
+        var lastDifferenceBetweenMaxAndActualSplitPoint = 0
         for( i in 1..numberOfSplitPoints) {
             val splitIndex = i * maxChunkSize
-            val backwardsSearchString = longMessage.substring(0, splitIndex)//only cut the end off, so we don't affect the indices
-            val splitPoint = backwardsSearchString.indexOfLast { it == '\n' }
+            //only cut the end off, so we don't affect the indices
+            val searchString = longMessage.substring(0, splitIndex - lastDifferenceBetweenMaxAndActualSplitPoint)
+            println("search string length: "+searchString.length)
+            val splitPoint = searchString.indexOfLast { it == '\n' }
+            lastDifferenceBetweenMaxAndActualSplitPoint += (splitIndex - splitPoint)
             splitPoints.add(splitPoint)
         }
         println("split points for message of length ${longMessage.length}: "+splitPoints)
@@ -34,6 +39,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
             messageChunks.add(longMessage.substring(splitPoints[i], splitPoints[i+1]))
         }
         messageChunks.add(longMessage.substring(splitPoints[splitPoints.size-1], longMessage.length))
+        println("message chunks: ${messageChunks.size} of sizes ${messageChunks.map { it.length }}")
         return messageChunks
     }
 
