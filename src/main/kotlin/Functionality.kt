@@ -60,7 +60,8 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
      *   5) at least one player has played before*/
     fun steamGamesInCommon(playerIDs: List<String>) {
 
-        val playerNicknames: Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
+        //val playerNicknames: Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
+        val playerNicknames: Map<String, String?> = cachedSteamApi.getNicksForPlayerIds(*(playerIDs.toTypedArray()))
         //get list of owned games for each 64-bit steam ID (comma-separated) (profiles must be public):
         //http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=$key&steamid=76561197979296883&format=json
         //Pair<appid:String, playtime:String>
@@ -132,7 +133,8 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
     }
 
     fun friendsOf(playerIDs: List<String>) {
-        val playerNicknames: Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
+        //val playerNicknames: Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
+        val playerNicknames: Map<String, String?> = cachedSteamApi.getNicksForPlayerIds(*(playerIDs.toTypedArray()))
 
         val friends = mutableSetOf<String>()
         val pp = ParallelProcess<String, Pair<String, Set<String>?>>().finishWhenQueueIsEmpty()

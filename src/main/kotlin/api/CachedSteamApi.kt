@@ -24,6 +24,22 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
         }
     }
 
+    fun getNicksForPlayerIds(vararg steamids:String):Map<String, String> {
+        val split = steamids.partition { redisApi.hasNickForPlayer(it) }
+        val needSteamApi = split.second.toMutableList()
+        val redissed = mutableMapOf<String, String>()
+        for(hasCachedNick in split.first) {
+            val nick = redisApi.getNickForPlayer(hasCachedNick)
+            if(nick != null) {
+                redissed.put(hasCachedNick,nick)
+            } else {
+                needSteamApi.add(hasCachedNick)
+            }
+        }
+        val steamed = steamApi.getNicksForPlayerIds(*(needSteamApi.toTypedArray()))
+        return redissed + steamed
+    }
+
     fun getGamesForPlayer(steamid:String):Set<String>? {
         return if(redisApi.hasGamesForPlayer(steamid)) {
             redisApi.getGamesForPlayer(steamid)
