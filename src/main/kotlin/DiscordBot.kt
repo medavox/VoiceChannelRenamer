@@ -2,6 +2,7 @@ import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.*
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent
+import net.dv8tion.jda.api.events.message.priv.PrivateMessageUpdateEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
 import java.lang.StringBuilder
@@ -63,17 +64,24 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
         }
     }
 
-    override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
-        output.clear()
-        val msg: String = event.message.contentRaw
-        val channel = event.channel
-        if(event.message.author == selfUser) {//ignore our own messages
-            return
+    override fun onPrivateMessageUpdate(event: PrivateMessageUpdateEvent) {
+        if(event.message.author != selfUser) {//ignore our own messages
+            handleCommand(event.message, event.channel)
         }
+    }
+
+    override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
+        if(event.message.author != selfUser) {//ignore our own messages
+            handleCommand(event.message, event.channel)
+        }
+    }
+    private fun handleCommand(msg:Message, channel:MessageChannel) {
+        output.clear()
+
         try {
-            if (msg.startsWith("!sgic ")) {
-                event.message.addReaction("\uD83E\uDD16").queue()
-                val arguments = argumentsFromCommand(msg)
+            if (msg.contentRaw.startsWith("!sgic ")) {
+                msg.addReaction("\uD83E\uDD16").queue()
+                val arguments = argumentsFromCommand(msg.contentRaw)
                 if(arguments.size < 2) {
                     channel.sendMessage("please specify at least 2 steam IDs.").queue()
                     return
@@ -89,9 +97,9 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                 for (submessage in splitLongMessage(results)) {
                     channel.sendMessage(submessage).queue()
                 }
-            } else if (msg.startsWith("!friendsof ")) {
-                event.message.addReaction("\uD83E\uDD16").queue()
-                val arguments = argumentsFromCommand(msg)
+            } else if (msg.contentRaw.startsWith("!friendsof ")) {
+                msg.addReaction("\uD83E\uDD16").queue()
+                val arguments = argumentsFromCommand(msg.contentRaw)
                 if(arguments.isEmpty()) {
                     channel.sendMessage("please specify at least 1 steam ID.").queue()
                     return
@@ -107,8 +115,8 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                 for (submessage in splitLongMessage(results, DISCORD_MAX_MESSAGE_LENGTH-10)) {
                     channel.sendMessage("```\n$submessage\n```").queue()
                 }
-            } else if (msg.contains("!help")) {
-                event.message.addReaction("\uD83E\uDD16").queue()
+            } else if (msg.contentRaw.contains("!help")) {
+                msg.addReaction("\uD83E\uDD16").queue()
                 val s = splitLongMessage(helpText)
                 println("help text message chunks: "+s.size)
                 channel.sendMessage(helpText).queue()
