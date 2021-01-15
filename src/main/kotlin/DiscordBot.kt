@@ -4,9 +4,12 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
+import java.lang.StringBuilder
 
 class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
     private val DISCORD_MAX_MESSAGE_LENGTH = 2000
+    private var output = StringBuilder()
+    private val backend = Functionality(steamWebApiKey) { output.appendln(it) }
 
     /**Discord doesn't allow a single message to be longer than 2000 characters.
      * This function splits all messages into chunks smaller than that
@@ -42,7 +45,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
             toTypedArray()
     }
 
-    /**DMs anyone who posts a public message '!sgic' somewhere we can get it*/
+    /**DMs anyone who posts a public message '!help' somewhere we can get it*/
     override fun onMessageReceived(event: MessageReceivedEvent) {
         super.onMessageReceived(event)
         if(event.channel.type != ChannelType.PRIVATE) {
@@ -55,6 +58,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
     }
 
     override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
+        output.clear()
         val msg: String = event.message.contentRaw
         val channel = event.channel
         if(event.message.author == selfUser) {//ignore our own messages
@@ -67,7 +71,13 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     channel.sendMessage("please specify at least 2 steam IDs.").queue()
                     return
                 }
-                val results = steamGamesInCommon(steamWebApiKey, *arguments)
+                val results:String = try {
+                    backend.steamGamesInCommon(*arguments)
+                    output.toString()
+                }
+                catch(e:SteamApiException) { e.message!!}
+                catch(e:ProfileNotFoundException) {e.message!!}
+                catch (e:PrivateOwnedGamesException) {e.message!!}
                 for (submessage in splitLongMessage(results)) {
                     channel.sendMessage(submessage).queue()
                 }
@@ -77,7 +87,13 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     channel.sendMessage("please specify at least 1 steam ID.").queue()
                     return
                 }
-                val results = friendsOf(steamWebApiKey, *arguments)
+                val results:String = try {
+                    backend.friendsOf(*arguments)
+                    output.toString()
+                }
+                catch(e:SteamApiException) { e.message!!}
+                catch(e:ProfileNotFoundException) {e.message!!}
+                catch (e:PrivateOwnedGamesException) {e.message!!}
                 for (submessage in splitLongMessage(results, DISCORD_MAX_MESSAGE_LENGTH-10)) {
                     channel.sendMessage("```\n$submessage\n```").queue()
                 }
