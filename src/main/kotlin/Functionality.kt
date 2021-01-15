@@ -22,18 +22,28 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         //=====================================
         // request all player IDs asynchronously in parallel.
         //can also use this to create a list of recent players, to reduce player effort after first use
-        val playerIDs = players.toList().associateWith { vanityOrHash ->
-            val guaranteed = cachedSteamApi.guaranteeSteamId(vanityOrHash) ?:
-                throw ProfileNotFoundException(vanityOrHash)
-            guaranteed
+        val possibleExceptions = mutableSetOf<Throwable>()
+        val playerIDs:Map<String, String?> = players.toList().associateWith { vanityOrHash ->
+            val guaranteed = cachedSteamApi.guaranteeSteamId(vanityOrHash)
+                if(guaranteed == null) {
+                    possibleExceptions.add(ProfileNotFoundException(vanityOrHash))
+                    null
+                }else guaranteed
+        }
+
+        if(playerIDs.values.any { it == null } || possibleExceptions.isNotEmpty()) {
+            //something went wrong; throw the multi exception
+            throw MultiException(possibleExceptions)
         }
 
         println("mapped steam IDs:")
-        playerIDs.forEach { (key: String, value: String) ->
+        playerIDs.forEach { (key: String, value: String?) ->
             println("$key: $value")
         }
 
-        return playerIDs.values.toList()
+        //the filter should remove nothing, -because we only reach here if nothing was null
+        return playerIDs.values.filterNotNull()
+
     }
     /**Input: a list of steam vanityNames
      * (https://steamcommunity.com/id/THIS_IS_YOUR_VANITY_NAME)
@@ -55,15 +65,20 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         println("\n-----------------------------------------------------------------------")
         println("getting list of owned games for each steam ID (profiles must be public):")
         println("-----------------------------------------------------------------------\n")
+        val possibleExceptions = mutableSetOf<Throwable>()
         val ownedGames: Map<String, Set<String>?> =playerIDs.associateWith { playerId: String ->
             val games = cachedSteamApi.getGamesForPlayer(playerId)
             if (games == null) {
-                throw SteamApiException()
+                possibleExceptions.add(SteamApiException())
             }
             else if (games.isEmpty()) {
-                throw PrivateOwnedGamesException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId )
+                possibleExceptions.add(PrivateOwnedGamesException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId ))
             }
             games
+        }
+        if(possibleExceptions.isNotEmpty()) {
+            //something went wrong; throw the multi exception
+            throw MultiException(possibleExceptions)
         }
 
         //work out which IDs are common to all given players
@@ -115,14 +130,19 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         val playerNicknames: MutableMap<String, String?> = cachedSteamApi.getNicksForPlayerIds(*(playerIDs.toTypedArray())).toMutableMap()
 
         val friends = mutableSetOf<String>()
+        val possibleExceptions = mutableSetOf<Throwable>()
         val results = playerIDs.associateWith { playerId: String ->
             val playersFriends = cachedSteamApi.getFriendsOfPlayer(playerId)
             if(playersFriends == null) {
-                throw SteamApiException()
+                possibleExceptions.add(SteamApiException())
             } else if(playersFriends.isEmpty()) {
-                throw PrivateFriendsException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId )
+                possibleExceptions.add(PrivateFriendsException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId ))
             }
             playersFriends
+        }
+        if(possibleExceptions.isNotEmpty()) {
+            //something went wrong; throw the multi exception
+            throw MultiException(possibleExceptions)
         }
 
         for (friendos:Set<String>? in results.values) {

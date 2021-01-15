@@ -90,10 +90,11 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     val playerIDs = backend.sanitiseInputIds(*arguments)
                     if(playerIDs.isNotEmpty()) backend.steamGamesInCommon(playerIDs)
                     output.toString()
+                } catch(e:MultiException) {
+                    output.clear()
+                    e.exceptions.mapNotNull {it.message}.forEach { output.appendln("ERROR: $it") }
+                    output.toString()
                 }
-                catch(e:SteamApiException) { e.message!!}
-                catch(e:ProfileNotFoundException) {e.message!!}
-                catch (e:PrivateOwnedGamesException) {e.message!!}
                 for (submessage in splitLongMessage(results)) {
                     channel.sendMessage(submessage).queue()
                 }
@@ -108,10 +109,11 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     val playerIDs = backend.sanitiseInputIds(*arguments)
                     if(playerIDs.isNotEmpty()) backend.friendsOf(playerIDs)
                     output.toString()
+                } catch(e:MultiException) {
+                    output.clear()
+                    e.exceptions.mapNotNull {it.message}.forEach { output.appendln("ERROR: $it") }
+                    output.toString()
                 }
-                catch(e:SteamApiException) { e.message!!}
-                catch(e:ProfileNotFoundException) {e.message!!}
-                catch (e:PrivateOwnedGamesException) {e.message!!}
                 for (submessage in splitLongMessage(results, DISCORD_MAX_MESSAGE_LENGTH-10)) {
                     println("message length: "+submessage.length)
                     channel.sendMessage("```\n$submessage\n```").queue()
