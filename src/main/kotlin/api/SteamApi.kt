@@ -13,7 +13,7 @@ class SteamApi(
     private val client: OkHttpClient = OkHttpClient(),
     private val json: Json = Json(JsonConfiguration.Stable)
 ) {
-    /**Gets 17-digit from a steam vanity ID, or a string that is already a 17-digit steam id.
+    /**Gets a 17-digit Steam ID from a Vanity ID, or a string that is already a 17-digit Steam id.
      * get 64-bit steam ID from 'vanityName' (mine is addham)
     only accepts one vanity name at a time, so it might be worth caching...*/
     fun getSteamIdForVanityName(vanityName: String): String? {
@@ -107,18 +107,42 @@ class SteamApi(
                 listOf<String>()
             } else {
                 val playerSummaries: JsonArray? = json.parseJson(responseString).jsonObject["friendslist"]?.jsonObject?.get("friends")?.jsonArray
-                playerSummaries?.map { it.jsonObject["steamid"].toString() } ?: listOf<String>()
+                playerSummaries?.map { it.jsonObject["steamid"].toString().trim('"') } ?: listOf<String>()
             }
         }
     }
 
-    /**Gets the current nickname for each provided player, or an empty map if the query failed for some reason.*/
+    /**Gets the current nickname for each provided player, or an empty map if the query failed for some reason.
+     * NOTE: Steam limits the number of nickname queries per request to 100,
+     * so any queries greater than this are split into multiple requests*/
     fun getNicksForPlayerIds(vararg steamids:String):Map<String, String> {
+        return if(steamids.size > 100) {
+            val queue = steamids.toMutableList()
+            val result = mutableMapOf<String, String>()
+            while(queue.isNotEmpty()) {
+                val thisRequest = queue.take(100)
+                println("this request: ${thisRequest.size}")
+                queue -= thisRequest
+                result += getNicksForPlayerIdsNotLimitedTo100(thisRequest)
+            }
+            //println("queue:$queue")
+            //println("result:$result")
+            result
+        } else {
+            getNicksForPlayerIdsNotLimitedTo100(steamids.toList())
+        }
+    }
+    /**Even though the Steam API limits player id requests to 100 in a  single query, this method does not limit itself.
+     * The above method does that.
+     * @see getNicksForPlayerIds*/
+    private fun getNicksForPlayerIdsNotLimitedTo100(steamids:List<String>):Map<String, String> {
         val url = steamids.fold(
                 "http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=$key&steamids="
         ) { acc, elem ->
             acc+(if(acc.last()=='=')"" else ",")+elem
         }
+        //println("request string: "+url)
+        //println("from: "+Exception().stackTrace)
         val request:Request = Request.Builder().url(url).build()
         return client.newCall(request).execute().use { response ->
             val responseString = response.body?.string()
@@ -126,12 +150,18 @@ class SteamApi(
                 println("ERROR: got a null response for player summaries request for IDs $steamids")
                 mapOf()
             } else {
+                println("nicks response json length: "+responseString.length)
+                val time = System.currentTimeMillis()
                 //{"response":{"players":[{
                 val playerSummaries: JsonArray? = json.parseJson(responseString).jsonObject["response"]?.jsonObject?.get("players")?.jsonArray
-                playerSummaries?.associate {
+                val o = playerSummaries?.associate {
                     val obj = it.jsonObject
-                    Pair<String, String>(obj["steamid"].toString(), obj["personaname"].toString())
+                    Pair<String, String>(obj["steamid"].toString().trim('"'), obj["personaname"].toString().trim('"'))
                 } ?:mapOf()
+                val fin = System.currentTimeMillis()
+                println("time taken to retrieve ${o.size} entries: ${fin-time}ms")
+                //println(o)
+                o
             }
         }
     }

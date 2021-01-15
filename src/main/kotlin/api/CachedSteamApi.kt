@@ -8,20 +8,25 @@ class CachedSteamApi(private val redisApi: RedisApi, private val steamApi: Steam
     // the nicknames are matched to steam IDs by checking the nicknames of the provided ID(s)' friends-of-friends,
     // and using any that match.
     // probably error rate, so this is another place we'll need a user-facing error message
-    fun getNickForPlayer(steamid:String):String? {
-        return if(redisApi.hasNickForPlayer(steamid)) {
-            redisApi.getNickForPlayer(steamid)
-        } else {//not found in redis
-            //try querying the steam web API for it
-            val singleNickMap = steamApi.getNicksForPlayerIds(steamid)
-            if(singleNickMap.isEmpty()) {
-                null//the query failed too, so return null
+
+    fun getNicksForPlayerIds(vararg steamids:String):Map<String, String> {
+        val split = steamids.partition { redisApi.hasNickForPlayer(it) }
+        println("cached nicks: ${split.first.size}; uncached: ${split.second.size}")
+        val needSteamApi = split.second.toMutableList()
+        val redissed = mutableMapOf<String, String>()
+        for(hasCachedNick in split.first) {
+            val nick = redisApi.getNickForPlayer(hasCachedNick)
+            if(nick != null) {
+                redissed.put(hasCachedNick, nick)
             } else {
-                val nick = singleNickMap.entries.single().value
-                redisApi.setNickForPlayer(steamid, nick)//store new data in redis
-                nick
+                needSteamApi.add(hasCachedNick)
             }
         }
+        val steamed:Map<String, String> = steamApi.getNicksForPlayerIds(*(needSteamApi.toTypedArray()))
+        steamed.forEach { (id: String, nick: String) ->
+            redisApi.setNickForPlayer(id, nick)
+        }
+        return redissed + steamed
     }
 
     fun getGamesForPlayer(steamid:String):Set<String>? {

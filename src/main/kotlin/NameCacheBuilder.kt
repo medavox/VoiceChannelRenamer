@@ -27,15 +27,13 @@ fun buildNameCache(key: String, vararg players: String) {
     val client = OkHttpClient.Builder()/*.followRedirects(false)*/.callTimeout(30, TimeUnit.SECONDS).build()
     val json = Json(JsonConfiguration.Stable)
     val steamApi = SteamApi(key, client, json)
+
+    val backend = Functionality(steamWebApiKey) { println(it) }
     //STEP 1
     //=====================================
     // request all player IDs asynchronously in parallel.
     //get 64-bit steam ID from 'vanityName' (mine is addham):
-    val pp1 = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
-    pp1.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
-        steamApi.getSteamIdForVanityName(vanityOrHash)
-    }, NUM_THREADS)
-    val playerIDs:List<String> = pp1.collectOutputWhenFinished().filterNotNull()
+    val playerIDs:List<String> = backend.sanitiseInputIds(*players)
 
     //STEP 2
     //=====================================
@@ -45,12 +43,9 @@ fun buildNameCache(key: String, vararg players: String) {
     println("\n-----------------------------------------------------------------------")
     println("getting list of owned games for each steam ID (profiles must be public):")
     println("-----------------------------------------------------------------------\n")
-    val pp2 = ParallelProcess<String, Pair<String, List<String>?>>().finishWhenQueueIsEmpty()
-    pp2.workerPoolOnMutableQueue(LinkedBlockingQueue(playerIDs), { playerId: String ->
-        Pair(playerId, steamApi.getGamesOwnedByPlayer(playerId))
-    }, NUM_THREADS)
-
-    val ownedGames:Map<String, List<String>?> = pp2.collectOutputWhenFinished().filterNotNull().toMap()
+    val ownedGames:Map<String, List<String>?> = playerIDs.associateWith { playerId: String ->
+        steamApi.getGamesOwnedByPlayer(playerId)
+    }
 
     //create a Set<String> of unique app IDs, so we only have to lookup the name of each game once
     val gameIds:MutableSet<String> = mutableSetOf()
@@ -79,7 +74,10 @@ fun buildNameCache(key: String, vararg players: String) {
         val gameIdsToLookup = gameIds.filter { appid ->
             cachedNames[appid.toInt()] == null
         }
-        pp1.reset().workerPoolOnMutableQueue(LinkedBlockingQueue(gameIdsToLookup), { appid ->
+
+        //this output collection isn't the most important data storage;
+        // the real work is in the Properties file, which now needs writing to disk
+        gameIdsToLookup.associateWith { appid ->
             val url = "https://store.steampowered.com/app/$appid"
             val request:Request = Request.Builder().url(url)
                 //don't compress the response, so we can just download the start of the document
@@ -126,13 +124,11 @@ fun buildNameCache(key: String, vararg players: String) {
                     possibleName
                 }
             }
-        }, NUM_THREADS)
-        pp1.collectOutputWhenFinished()//this output collection isn't the most important data storage;
-        // the real work is in the Properties file, which now needs writing to disk
+        }
 
         //STEP 4: Retry failed scrapes with the Web API
         println("retrying ${failedScrapes.size} failed store-page scrapes with the Steam Web API...")
-        pp1.reset().workerPoolOnMutableQueue(LinkedBlockingQueue(failedScrapes), { appid:String ->
+        val results = failedScrapes.associateWith { appid:String ->
             //despite the name 'appids', the store API no longer supports multiple appids, for some unknown reason:
             //https://www.reddit.com/r/Steam/comments/2kz2ay/steam_store_api_multiple_app_id_lists_no_longer/
             val url = "http://api.steampowered.com/ISteamUserStats/GetSchemaForGame/v2/?key=$key&appid=$appid"
@@ -162,9 +158,8 @@ fun buildNameCache(key: String, vararg players: String) {
                 }
                 possibleName
             }
-        }, NUM_THREADS)
+        }
 
-        val results = pp1.collectOutputWhenFinished()
         val failures = results.count { it == null }
         println("$failures or ${(failures*1000) / gameIds.size }‰ of name lookups failed")
     } finally {
