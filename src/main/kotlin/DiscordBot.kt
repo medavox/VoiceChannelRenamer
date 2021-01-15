@@ -66,6 +66,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
         }
         try {
             if (msg.startsWith("!sgic ")) {
+                event.message.addReaction("\uD83E\uDD16").queue()
                 val arguments = argumentsFromCommand(msg)
                 if(arguments.size < 2) {
                     channel.sendMessage("please specify at least 2 steam IDs.").queue()
@@ -83,6 +84,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     channel.sendMessage(submessage).queue()
                 }
             } else if (msg.startsWith("!friendsof ")) {
+                event.message.addReaction("\uD83E\uDD16").queue()
                 val arguments = argumentsFromCommand(msg)
                 if(arguments.isEmpty()) {
                     channel.sendMessage("please specify at least 1 steam ID.").queue()
@@ -100,6 +102,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     channel.sendMessage("```\n$submessage\n```").queue()
                 }
             } else if (msg.contains("!help")) {
+                event.message.addReaction("\uD83E\uDD16").queue()
                 val s = splitLongMessage(helpText)
                 println("help text message chunks: "+s.size)
                 channel.sendMessage(helpText).queue()
