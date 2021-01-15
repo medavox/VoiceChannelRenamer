@@ -117,7 +117,7 @@ Commands:
 !help (also works in public channels)
 displays this text
 
-If you can program (or are curious), the source code for this bot is at https://github.com/medavox/
+If you can program (or are curious), the source code for this bot is at https://github.com/medavox/steamGamesInCommon
 """
 
 fun main() {
