@@ -72,7 +72,8 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     return
                 }
                 val results:String = try {
-                    backend.steamGamesInCommon(*arguments)
+                    val playerIDs = backend.sanitiseInputIds(*arguments)
+                    if(playerIDs.isNotEmpty()) backend.steamGamesInCommon(playerIDs)
                     output.toString()
                 }
                 catch(e:SteamApiException) { e.message!!}
@@ -88,7 +89,8 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                     return
                 }
                 val results:String = try {
-                    backend.friendsOf(*arguments)
+                    val playerIDs = backend.sanitiseInputIds(*arguments)
+                    if(playerIDs.isNotEmpty()) backend.friendsOf(playerIDs)
                     output.toString()
                 }
                 catch(e:SteamApiException) { e.message!!}

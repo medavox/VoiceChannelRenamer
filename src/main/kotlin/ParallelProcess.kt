@@ -21,6 +21,8 @@ internal class ParallelProcess<In, Out> {
 
     private val workerThreads:MutableSet<Thread> = mutableSetOf()
     private lateinit var outputInProgress:MutableList<Out?>//nullable because worker threads may fail to produce output
+    private var _exceptions = mutableListOf<Throwable>()
+    val exceptions:List<Throwable> get() = _exceptions
     private var isRunning = false
     /**Run this instance's worker repeatedly concurrently with the same input.
      * @param input the input to run on
@@ -74,6 +76,7 @@ internal class ParallelProcess<In, Out> {
         if(isRunning) throw IllegalStateException("this instance is already running an operation.\n" +
                 "Collect the data from this operation first, or use another instance.")
         outputInProgress = mutableListOf<Out?>()//the output list is an as-yet unknown size,
+        _exceptions.clear()
         //so just initialise it and let the workers add their elements.
         //let's hope Kotlin Lists are thread-safe!
         for(i in 1..numberOfWorkerThreads) {
@@ -99,6 +102,12 @@ internal class ParallelProcess<In, Out> {
                     }
                 }
             }
+            worker.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, exception ->
+                _exceptions.add(exception)
+
+                println("OH NO! "+exception)
+                //throw exception
+            }
             workerThreads.add(worker)
             isRunning = true
             worker.start()
@@ -107,18 +116,25 @@ internal class ParallelProcess<In, Out> {
 
     /**Get the resulting output from the worker threads.
      * This is a blocking method; it only returns once all worker threads have finished.*/
+    //@Throws(Exception::class)
     fun collectOutputWhenFinished(): List<Out?> {
         for(thread in workerThreads) {
             thread.join()
         }
+        println("exceptions: ${_exceptions.size}")
         isRunning = false
         //get rid of null elements, convert from MutableSet<Out?> to List<Out>
+/*        if(exceptions.isNotEmpty()) {
+            throw exceptions.first()
+        }*/
         return outputInProgress
     }
 
     fun reset():ParallelProcess<In, Out> {
         workerThreads.clear()
         threadsKillswitch = false
+        _exceptions.clear()
+        outputInProgress.clear()
         return this
     }
 }
