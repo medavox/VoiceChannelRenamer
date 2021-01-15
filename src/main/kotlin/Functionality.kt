@@ -7,7 +7,7 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 
-class Main(steamKey:String, private val traceln: (CharSequence) -> Unit) {
+internal class Functionality(steamKey:String, private val traceln: (msg:CharSequence) -> Unit) {
 
     val debug = false
     val NUM_THREADS = 6
@@ -63,7 +63,7 @@ class Main(steamKey:String, private val traceln: (CharSequence) -> Unit) {
         pp2.workerPoolOnMutableQueue(LinkedBlockingQueue(playerIDs), { playerId: String ->
             val games = cachedSteamApi.getGamesForPlayer(playerId)
             if (games == null) {
-                throw SteamApiOrNetworkException()
+                throw SteamApiException()
             }
             else if (games.isEmpty()) {
                 throw PrivateOwnedGamesException(playerNicknames[playerId]?.let { "**$it** ($playerId)" } ?: playerId )
@@ -126,7 +126,7 @@ class Main(steamKey:String, private val traceln: (CharSequence) -> Unit) {
         for (playerId in playerIDs) {
             val playersFriends = cachedSteamApi.getFriendsOfPlayer(playerId)
             if(playersFriends == null) {
-                throw SteamApiOrNetworkException()
+                throw SteamApiException()
             } else if(playersFriends.isEmpty()) {
                 throw PrivateFriendsException(playerNicknames[playerId]?.let { "**$it** ($playerId)" } ?: playerId )
             }
@@ -138,12 +138,4 @@ class Main(steamKey:String, private val traceln: (CharSequence) -> Unit) {
         }
     }
 }
-fun main(args:Array<String>)  {
-    if (args.size < 2) {
-        System.err.println("required arguments: <steam web API key> [player]...")
-    }
-    val names = args.copyOfRange(1, args.size)
-    //buildNameCache(args[0], *names)
-    val sb = StringBuilder()
-    Main(args[0], {sb.appendln(it)}).steamGamesInCommon(*names)
-}
+
