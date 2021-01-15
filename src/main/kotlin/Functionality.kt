@@ -22,31 +22,18 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         //=====================================
         // request all player IDs asynchronously in parallel.
         //can also use this to create a list of recent players, to reduce player effort after first use
-        val pp = ParallelProcess<String, String?>().finishWhenQueueIsEmpty()
-        pp.workerPoolOnMutableQueue(LinkedBlockingQueue(players.toList()), { vanityOrHash ->
+        val playerIDs = players.toList().associateWith { vanityOrHash ->
             val guaranteed = cachedSteamApi.guaranteeSteamId(vanityOrHash) ?:
                 throw ProfileNotFoundException(vanityOrHash)
             guaranteed
-        }, NUM_THREADS)
-        // Get the request contents without blocking threads, but wait until all requests are done.
-        val playerIDsNullable: List<String?> = pp.collectOutputWhenFinished()//.filterNotNull()
-        println("but exceptions here: "+pp.exceptions.size)
-        if(pp.exceptions.isNotEmpty()){
-            for(e in pp.exceptions) {
-                traceln("ERROR: "+e.message)
-            }
-            return listOf()
         }
 
-
-        val playerIDs: List<String> = playerIDsNullable.filterNotNull()
-/*        if (playerIDs.size != players.size) {
-            return sb.toString()
-        }*/
         println("mapped steam IDs:")
-        players.forEachIndexed { i, s -> println("$s: ${playerIDsNullable[i]}") }
+        playerIDs.forEach { (key: String, value: String) ->
+            println("$key: $value")
+        }
 
-        return playerIDs
+        return playerIDs.values.toList()
     }
     /**Input: a list of steam vanityNames
      * (https://steamcommunity.com/id/THIS_IS_YOUR_VANITY_NAME)
@@ -68,8 +55,7 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         println("\n-----------------------------------------------------------------------")
         println("getting list of owned games for each steam ID (profiles must be public):")
         println("-----------------------------------------------------------------------\n")
-        val pp2 = ParallelProcess<String, Pair<String, Set<String>?>>().finishWhenQueueIsEmpty()
-        pp2.workerPoolOnMutableQueue(LinkedBlockingQueue(playerIDs), { playerId: String ->
+        val ownedGames: Map<String, Set<String>?> =playerIDs.associateWith { playerId: String ->
             val games = cachedSteamApi.getGamesForPlayer(playerId)
             if (games == null) {
                 throw SteamApiException()
@@ -77,14 +63,7 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
             else if (games.isEmpty()) {
                 throw PrivateOwnedGamesException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId )
             }
-            Pair(playerId, games)
-        }, NUM_THREADS)
-        val ownedGames: Map<String, Set<String>?> = pp2.collectOutputWhenFinished().filterNotNull().toMap()
-        if(pp2.exceptions.isNotEmpty()){
-            for(e in pp2.exceptions) {
-                traceln("ERROR: "+e.message)
-            }
-            return
+            games
         }
 
         //work out which IDs are common to all given players
@@ -137,23 +116,16 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
         val playerNicknames: Map<String, String?> = cachedSteamApi.getNicksForPlayerIds(*(playerIDs.toTypedArray()))
 
         val friends = mutableSetOf<String>()
-        val pp = ParallelProcess<String, Pair<String, Set<String>?>>().finishWhenQueueIsEmpty()
-        pp.workerPoolOnMutableQueue(LinkedBlockingQueue(playerIDs), { playerId: String ->
+        val results = playerIDs.associateWith { playerId: String ->
             val playersFriends = cachedSteamApi.getFriendsOfPlayer(playerId)
             if(playersFriends == null) {
                 throw SteamApiException()
             } else if(playersFriends.isEmpty()) {
                 throw PrivateFriendsException(playerNicknames[playerId]?.let { "${it.trim('"')} ($playerId)" } ?: playerId )
             }
-            Pair(playerId, playersFriends)
-        }, NUM_THREADS)
-        val results = pp.collectOutputWhenFinished().filterNotNull().toMap()
-        if(pp.exceptions.isNotEmpty()){
-            for(e in pp.exceptions) {
-                traceln("ERROR: "+e.message)
-            }
-            return
+            playersFriends
         }
+
         for (friendos:Set<String>? in results.values) {
             friendos?.let{friends.addAll(friendos)}
         }
