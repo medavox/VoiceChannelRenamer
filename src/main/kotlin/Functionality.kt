@@ -73,7 +73,6 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
             commonToAll = commonToAll.intersect(justTheGames[i])
         }
 
-
         traceln("**${if (commonToAll.isEmpty()) "No" else commonToAll.size.toString()} " +
                 "games found in common for ${playerIDs.size} players " +
                 "${playerNicknames.values.toString().trim { it == '[' || it == ']' }}:**")
@@ -113,7 +112,7 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
 
     fun friendsOf(playerIDs: List<String>) {
         //val playerNicknames: Map<String, String?> = playerIDs.associateWith { cachedSteamApi.getNickForPlayer(it) }
-        val playerNicknames: Map<String, String?> = cachedSteamApi.getNicksForPlayerIds(*(playerIDs.toTypedArray()))
+        val playerNicknames: MutableMap<String, String?> = cachedSteamApi.getNicksForPlayerIds(*(playerIDs.toTypedArray())).toMutableMap()
 
         val friends = mutableSetOf<String>()
         val results = playerIDs.associateWith { playerId: String ->
@@ -130,8 +129,9 @@ internal class Functionality(steamKey:String, private val traceln: (msg:CharSequ
             friendos?.let{friends.addAll(friendos)}
         }
         traceln("Friends of ${playerNicknames.values.toString().trim { it == '[' || it == ']' }}:")
+        playerNicknames += cachedSteamApi.getNicksForPlayerIds(*(friends.toTypedArray()))
         friends.forEach { friendSteamId ->
-            traceln(friendSteamId.trim { it == '"' } + " = " + cachedSteamApi.getNickForPlayer(friendSteamId))
+            traceln(friendSteamId.trim { it == '"' } + " = " + (playerNicknames[friendSteamId] ?: "<unknown>"))
         }
     }
 }

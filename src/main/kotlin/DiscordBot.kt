@@ -113,6 +113,7 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
                 catch(e:ProfileNotFoundException) {e.message!!}
                 catch (e:PrivateOwnedGamesException) {e.message!!}
                 for (submessage in splitLongMessage(results, DISCORD_MAX_MESSAGE_LENGTH-10)) {
+                    println("message length: "+submessage.length)
                     channel.sendMessage("```\n$submessage\n```").queue()
                 }
             } else if (msg.contentRaw.contains("!help")) {
