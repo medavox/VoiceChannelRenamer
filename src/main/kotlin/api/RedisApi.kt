@@ -30,7 +30,7 @@ class RedisApi : AutoCloseable {
 
     override fun close() = pool.close() // when closing your application
 
-    val pool:JedisPool = JedisPool(JedisPoolConfig(), "localhost", 1989)
+    val pool:JedisPool = JedisPool(JedisPoolConfig(), "localhost", 7015)
 
     /**@return false if the data wasn't added because the key already exists*/
     fun setGameNameForAppId(appid:Int, gameName:String):Boolean = pool.resource.use { jedis ->
