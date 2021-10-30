@@ -18,11 +18,8 @@ repositories {
 }
 dependencies {
     implementation(kotlin("stdlib-jdk8"))
-    implementation("com.squareup.okhttp3:okhttp:4.7.2")
-    implementation("org.jsoup:jsoup:1.13.1")
     implementation ("org.jetbrains.kotlinx:kotlinx-serialization-runtime:0.20.0")
     implementation ("net.dv8tion:JDA:4.2.0_227")
-    implementation ("redis.clients:jedis:3.2.0")
     //a logging library is strongly recommended by JDA
     implementation ("org.apache.logging.log4j:log4j-api:2.13.3")
     implementation ("org.apache.logging.log4j:log4j-core:2.13.3")
