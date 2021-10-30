@@ -1,162 +1,93 @@
 import net.dv8tion.jda.api.JDABuilder
 import net.dv8tion.jda.api.entities.*
-import net.dv8tion.jda.api.events.message.MessageReceivedEvent
-import net.dv8tion.jda.api.events.message.priv.PrivateMessageReceivedEvent
-import net.dv8tion.jda.api.events.message.priv.PrivateMessageUpdateEvent
+import net.dv8tion.jda.api.events.guild.member.update.GenericGuildMemberUpdateEvent
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceJoinEvent
+import net.dv8tion.jda.api.events.guild.voice.GuildVoiceUpdateEvent
+import net.dv8tion.jda.api.events.user.UserActivityEndEvent
+import net.dv8tion.jda.api.events.user.UserActivityStartEvent
 import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
 import java.lang.StringBuilder
+import kotlin.math.max
+import kotlin.math.min
 
 class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
-    private val DISCORD_MAX_MESSAGE_LENGTH = 2000
     private var output = StringBuilder()
-    private val backend = Functionality(steamWebApiKey) { output.appendln(it) }
 
-    /**Discord doesn't allow a single message to be longer than 2000 characters.
-     * This function splits all messages into chunks smaller than that
-     * */
-    private fun splitLongMessage(longMessage:String, maxChunkSize:Int=DISCORD_MAX_MESSAGE_LENGTH):List<String> {
-        println("max message length: $maxChunkSize")
-        if(longMessage.length < maxChunkSize) {
-            return listOf(longMessage)
+    private val lastActivityPerChannel: MutableMap<VoiceChannel, Activity?> = mutableMapOf()
+
+    override fun onGuildVoiceUpdate(event: GuildVoiceUpdateEvent) {
+        super.onGuildVoiceUpdate(event)
+        event.channelJoined?.let {
+            handleUpdate(it)
         }
-        val numberOfSplitPoints = longMessage.length / maxChunkSize
-        println("number of splits: $numberOfSplitPoints")
-        val splitPoints = mutableListOf<Int>(0)
-        var lastDifferenceBetweenMaxAndActualSplitPoint = 0
-        for( i in 1..numberOfSplitPoints) {
-            val splitIndex = i * maxChunkSize
-            //only cut the end off, so we don't affect the indices
-            val searchString = longMessage.substring(0, splitIndex - lastDifferenceBetweenMaxAndActualSplitPoint)
-            println("search string length: "+searchString.length)
-            val splitPoint = searchString.indexOfLast { it == '\n' }
-            lastDifferenceBetweenMaxAndActualSplitPoint += (splitIndex - splitPoint)
-            splitPoints.add(splitPoint)
+
+        event.channelLeft?.let {
+            handleUpdate(it)
         }
-        println("split points for message of length ${longMessage.length}: "+splitPoints)
-        //find the \n whose index is highest, but < 2000
-        val messageChunks = mutableListOf<String>()
-        for (i in 0 until splitPoints.size-1) {
-            messageChunks.add(longMessage.substring(splitPoints[i], splitPoints[i+1]))
-        }
-        messageChunks.add(longMessage.substring(splitPoints[splitPoints.size-1], longMessage.length))
-        println("message chunks: ${messageChunks.size} of sizes ${messageChunks.map { it.length }}")
-        return messageChunks
     }
 
-    private fun argumentsFromCommand(command:String):Array<String> {
-        return command.split(" ").
-            let { it.subList(1, it.size) }.
-            map { arg -> arg.trim()}.
-            filter { it.isNotBlank() && it.isNotEmpty() }.
-            toTypedArray()
+    override fun onUserActivityStart(event: UserActivityStartEvent) {
+        super.onUserActivityStart(event)
+        event.member.voiceState?.channel?.let {
+            handleUpdate(it)
+        }
     }
 
-    /**DMs anyone who posts a public message '!help' somewhere we can get it*/
-    override fun onMessageReceived(event: MessageReceivedEvent) {
-        super.onMessageReceived(event)
-        if(event.channel.type != ChannelType.PRIVATE) {
-            if (event.message.contentRaw == "!help") {
-                event.message.author.openPrivateChannel().queue { privChan ->
-                    privChan.sendMessage(helpText).queue()
-                }
+    override fun onUserActivityEnd(event: UserActivityEndEvent) {
+        super.onUserActivityEnd(event)
+        event.member.voiceState?.channel?.let {
+            handleUpdate(it)
+        }
+    }
+
+    fun handleUpdate(voiceChannel:VoiceChannel) {
+        val activity:Activity? = getMostPlayedGameInChannel(voiceChannel)
+        if(lastActivityPerChannel[voiceChannel] == activity) return // do nothing if the activity hasn't changed
+
+        val gameAndnormalNameSeparator = " \uD83C\uDFAE "
+
+        val nameParts = voiceChannel.name.split(gameAndnormalNameSeparator)
+        if(activity != null) { // there is a dominant game
+            lastActivityPerChannel[voiceChannel] = activity
+            val maxLength = 15
+            val truncatedName = if(activity.name.length <= maxLength) activity.name else {
+                activity.name.substring(0, min(activity.name.length, maxLength))+"…"
+            }
+
+            val normalChannelName = if(nameParts.size > 1) nameParts[1] else voiceChannel.name
+            voiceChannel.manager.setName(truncatedName + gameAndnormalNameSeparator + normalChannelName)
+        } else { // there isn't a dominant game; remove any game names
+            lastActivityPerChannel[voiceChannel] = null
+            if(nameParts.size > 1) {
+                voiceChannel.manager.setName(nameParts[1])
             }
         }
     }
 
-    override fun onPrivateMessageUpdate(event: PrivateMessageUpdateEvent) {
-        if(event.message.author != selfUser) {//ignore our own messages
-            handleCommand(event.message, event.channel)
-        }
-    }
+    fun getMostPlayedGameInChannel(channel:VoiceChannel): Activity? {
+        val members = channel.members
+        val gameList:MutableMap<Activity, Int> = mutableMapOf()
 
-    override fun onPrivateMessageReceived(event: PrivateMessageReceivedEvent) {
-        if(event.message.author != selfUser) {//ignore our own messages
-            handleCommand(event.message, event.channel)
-        }
-    }
-    private fun handleCommand(msg:Message, channel:MessageChannel) {
-        output.clear()
-
-        try {
-            if (msg.contentRaw.startsWith("!sgic ")) {
-                msg.addReaction("\uD83E\uDD16").queue()
-                val arguments = argumentsFromCommand(msg.contentRaw)
-                if(arguments.size < 2) {
-                    channel.sendMessage("please specify at least 2 steam IDs.").queue()
-                    return
+        for (m in members) {
+            if (m.activities.isNotEmpty()) {
+                for (activity in m.activities) {
+                    if(activity.type == Activity.ActivityType.DEFAULT) {
+                        gameList[activity] = (gameList[activity] ?: 0) + 1
+                    }
                 }
-                val results:String = try {
-                    val playerIDs = backend.sanitiseInputIds(*arguments)
-                    if(playerIDs.isNotEmpty()) backend.steamGamesInCommon(playerIDs)
-                    output.toString()
-                } catch(e:MultiException) {
-                    output.clear()
-                    e.exceptions.mapNotNull {it.message}.forEach { output.appendln("ERROR: $it") }
-                    output.toString()
-                }
-                for (submessage in splitLongMessage(results)) {
-                    channel.sendMessage(submessage).queue()
-                }
-            } else if (msg.contentRaw.startsWith("!friendsof ")) {
-                msg.addReaction("\uD83E\uDD16").queue()
-                val arguments = argumentsFromCommand(msg.contentRaw)
-                if(arguments.isEmpty()) {
-                    channel.sendMessage("please specify at least 1 steam ID.").queue()
-                    return
-                }
-                val results:String = try {
-                    val playerIDs = backend.sanitiseInputIds(*arguments)
-                    if(playerIDs.isNotEmpty()) backend.friendsOf(playerIDs)
-                    output.toString()
-                } catch(e:MultiException) {
-                    output.clear()
-                    e.exceptions.mapNotNull {it.message}.forEach { output.appendln("ERROR: $it") }
-                    output.toString()
-                }
-                for (submessage in splitLongMessage(results, DISCORD_MAX_MESSAGE_LENGTH-10)) {
-                    println("message length: "+submessage.length)
-                    channel.sendMessage("```\n$submessage\n```").queue()
-                }
-            } else if (msg.contentRaw.contains("!help")) {
-                msg.addReaction("\uD83E\uDD16").queue()
-                val s = splitLongMessage(helpText)
-                println("help text message chunks: "+s.size)
-                channel.sendMessage(helpText).queue()
-            } else {
-                channel.sendMessage("command not recognised. Try `!sgic`, `!friendsof` or `!help`").queue()
             }
-        } catch(owt:Throwable) {
-            channel.sendMessage("Woops! something went wrong at my end (tech jargon:||${owt.javaClass.name}||). Try again?").queue()
-            throw owt
         }
+
+        if(gameList.isEmpty()) return null // no-one is playing anything, or no one is connected
+
+        val sortedList = gameList.entries.sortedByDescending { it.value }
+
+        return if(sortedList[0].value > (sortedList.getOrNull(1)?.value ?: 0)) {
+            sortedList[0].key
+        } else null
     }
 }
-private val helpText = """Find games everyone can play!
-
-In public channels, I only respond to !help.
-The main commands only work when you you DM me, for extra privacy.
-NOTE: the steam profile of every user must be public!
-
-Commands:
-
-!sgic <ID> <ID>...
-    (Steam Games In Common)
-    ID can be a steam ID (eg 76561197962146232) or a 'vanity name' (eg AbacusAvenger).
-    Lists games which all the specified users own. 
-    When more than 2 users are specified, also lists games that only one player doesn't own.
-
-    example: !sgic 
-
-!friendsof <ID> <ID>...
-    lists the steam friends of all the specified users.
-    Aan easier method to get steam IDs for the main !sgic command.
-
-!help (also works in public channels)
-displays this text
-
-If you can program (or are curious), the source code for this bot is at https://github.com/medavox/steamGamesInCommon
-"""
 
 fun main() {
     val jda = JDABuilder.createLight(discordToken, GatewayIntent.GUILD_MESSAGES, GatewayIntent.DIRECT_MESSAGES)
