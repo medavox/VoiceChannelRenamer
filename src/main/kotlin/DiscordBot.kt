@@ -9,10 +9,8 @@ import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.MemberCachePolicy
 import net.dv8tion.jda.api.utils.cache.CacheFlag
 import java.util.concurrent.CompletableFuture
-import kotlin.math.min
 
-class DiscordBot() : ListenerAdapter() {
-    private val o = System.out
+class DiscordBot: ListenerAdapter() {
     private val pendingRequests:MutableSet<CompletableFuture<Void>> = mutableSetOf()
 
     private val lastActivityPerChannel: MutableMap<VoiceChannel, Activity?> = mutableMapOf()
@@ -20,15 +18,15 @@ class DiscordBot() : ListenerAdapter() {
     override fun onGuildVoiceUpdate(event: GuildVoiceUpdateEvent) {
         super.onGuildVoiceUpdate(event)
         event.channelJoined?.let {
-            o.println(event.entity.effectiveName+" joined "+event.channelJoined)
+            println(event.entity.effectiveName+" joined "+event.channelJoined)
             val channel = event.channelJoined
-            o.println(" can do the thing: "+channel?.guild?.selfMember?.hasPermission(channel, Permission.MANAGE_CHANNEL))
+            println(" can do the thing: "+channel?.guild?.selfMember?.hasPermission(channel, Permission.MANAGE_CHANNEL))
 
             handleUpdate(it)
         }
 
         event.channelLeft?.let {
-            o.println(event.entity.effectiveName+" left "+event.channelJoined)
+            println(event.entity.effectiveName+" left "+event.channelJoined)
             handleUpdate(it)
         }
     }
@@ -36,7 +34,7 @@ class DiscordBot() : ListenerAdapter() {
     override fun onUserActivityStart(event: UserActivityStartEvent) {
         super.onUserActivityStart(event)
         event.member.voiceState?.channel?.let {
-            o.println(event.member.effectiveName+" started "+event.newActivity)
+            println(event.member.effectiveName+" started "+event.newActivity)
             handleUpdate(it)
         }
     }
@@ -44,8 +42,15 @@ class DiscordBot() : ListenerAdapter() {
     override fun onUserActivityEnd(event: UserActivityEndEvent) {
         super.onUserActivityEnd(event)
         event.member.voiceState?.channel?.let {
-            o.println(event.member.effectiveName+" ended "+event.oldActivity)
+            println(event.member.effectiveName+" ended "+event.oldActivity)
             handleUpdate(it)
+        }
+    }
+
+    private fun String.truncateIfTooLong(maxLength: Int): String {
+        val half = maxLength/2
+        return if(length <= maxLength+1) this else {
+            substring(0,  half)+"…"+substring(length-half,  length)
         }
     }
 
@@ -53,24 +58,19 @@ class DiscordBot() : ListenerAdapter() {
         val activity:Activity? = getMostPlayedGameInChannel(voiceChannel)
         if(lastActivityPerChannel[voiceChannel] == activity) return // do nothing if the activity hasn't changed
 
-        if(voiceChannel.members.size == 1) return //do nothing if there's only 1 person
-
         val gameAndNormalNameSeparator = " \uD83C\uDFAE "
 
         val nameParts = voiceChannel.name.split(gameAndNormalNameSeparator)
         if(activity != null) { // there is a dominant game
-            o.println("there is a dominant game in ${voiceChannel.name}: "+activity.name)
+            println("there is a dominant game in ${voiceChannel.name}: "+activity.name)
             lastActivityPerChannel[voiceChannel] = activity
-            val maxLength = 15
-            val truncatedName = if(activity.name.length <= maxLength) activity.name else {
-                activity.name.substring(0, min(activity.name.length, maxLength))+"…"
-            }
+            val truncatedName = activity.name.truncateIfTooLong(16)
 
             val normalChannelName = if(nameParts.size > 1) nameParts[1] else voiceChannel.name
 
             voiceChannel.setNameAndCancelPreviousNameChanges(truncatedName + gameAndNormalNameSeparator + normalChannelName)
         } else { // there isn't a dominant game; remove any game names
-            o.println("no one game is being played in "+voiceChannel.name)
+            println("no one game is being played in "+voiceChannel.name)
             lastActivityPerChannel[voiceChannel] = null
             if(nameParts.size > 1) {
                 voiceChannel.setNameAndCancelPreviousNameChanges(nameParts[1])
