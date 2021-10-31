@@ -8,16 +8,14 @@ import net.dv8tion.jda.api.hooks.ListenerAdapter
 import net.dv8tion.jda.api.requests.GatewayIntent
 import net.dv8tion.jda.api.utils.MemberCachePolicy
 import net.dv8tion.jda.api.utils.cache.CacheFlag
+import java.util.concurrent.CompletableFuture
 import kotlin.math.min
 
-class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
+class DiscordBot() : ListenerAdapter() {
     private val o = System.out
+    private val pendingRequests:MutableSet<CompletableFuture<Void>> = mutableSetOf()
 
     private val lastActivityPerChannel: MutableMap<VoiceChannel, Activity?> = mutableMapOf()
-
-    init {
-        System.out.println("squelcn")
-    }
 
     override fun onGuildVoiceUpdate(event: GuildVoiceUpdateEvent) {
         super.onGuildVoiceUpdate(event)
@@ -55,6 +53,8 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
         val activity:Activity? = getMostPlayedGameInChannel(voiceChannel)
         if(lastActivityPerChannel[voiceChannel] == activity) return // do nothing if the activity hasn't changed
 
+        if(voiceChannel.members.size == 1) return //do nothing if there's only 1 person
+
         val gameAndNormalNameSeparator = " \uD83C\uDFAE "
 
         val nameParts = voiceChannel.name.split(gameAndNormalNameSeparator)
@@ -67,24 +67,22 @@ class DiscordBot(private val selfUser:SelfUser) : ListenerAdapter() {
             }
 
             val normalChannelName = if(nameParts.size > 1) nameParts[1] else voiceChannel.name
-            voiceChannel.manager.setName(truncatedName + gameAndNormalNameSeparator + normalChannelName).queue({
-                o.println(" name change success!")
-            },
-                {
-                    o.println(" name change failure: "+it.message+" "+it.stackTrace.toString())
-                })
+
+            voiceChannel.setNameAndCancelPreviousNameChanges(truncatedName + gameAndNormalNameSeparator + normalChannelName)
         } else { // there isn't a dominant game; remove any game names
             o.println("no one game is being played in "+voiceChannel.name)
             lastActivityPerChannel[voiceChannel] = null
             if(nameParts.size > 1) {
-                voiceChannel.manager.setName(nameParts[1]).queue({
-                    o.println(" name reset success!")
-                },
-                {
-                    o.println(" name reset failure: "+it.message+" "+it.stackTrace.toString())
-                })
+                voiceChannel.setNameAndCancelPreviousNameChanges(nameParts[1])
             }
         }
+    }
+
+    /**Cancels any pending previous attempts to set name */
+    private fun VoiceChannel.setNameAndCancelPreviousNameChanges(newName: String) {
+        pendingRequests.removeIf { it.isDone }
+        pendingRequests.forEach { it.cancel(false) }
+        this.manager.setName(newName).submit()
     }
 
     private fun getMostPlayedGameInChannel(channel:VoiceChannel): Activity? {
@@ -117,5 +115,5 @@ fun main() {
         .enableCache(CacheFlag.ACTIVITY, CacheFlag.VOICE_STATE)
         .build()
     jda.awaitReady()
-    jda.addEventListener(DiscordBot(jda.selfUser))
+    jda.addEventListener(DiscordBot())
 }
